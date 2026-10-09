@@ -6,6 +6,7 @@ from typing import Any
 from .models import *
 
 logger = logging.getLogger(__name__)
+_JOURNAL_MODE_LOCK = threading.Lock()
 
 class Store:
     SCHEMA_VERSION = 0
@@ -16,8 +17,15 @@ class Store:
         self.path = Path(path or os.getenv('LACAN_DB_PATH','./data/lacan.db'))
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.lock = threading.RLock()
-        self.conn = sqlite3.connect(self.path, check_same_thread=False)
+        self.conn = sqlite3.connect(self.path, check_same_thread=False, timeout=30.0)
         self.conn.row_factory = sqlite3.Row
+        if os.getenv('LACAN_ENABLE_WAL', '1') == '1':
+            try:
+                with _JOURNAL_MODE_LOCK:
+                    self.conn.execute('PRAGMA journal_mode=WAL')
+            except sqlite3.OperationalError:
+                logger.debug('WAL unavailable for %s; continuing with default journal', self.path)
+        self.conn.execute('PRAGMA busy_timeout=30000')
         self.conn.executescript('''
         CREATE TABLE IF NOT EXISTS projects(id TEXT PRIMARY KEY, data TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS participants(id TEXT, project_id TEXT, data TEXT NOT NULL, PRIMARY KEY(id,project_id));
@@ -86,7 +94,27 @@ class Store:
     def search(self,q,limit=5):
         rows=self.conn.execute('SELECT d.data FROM document_fts f JOIN documents d ON d.id=f.document_id WHERE document_fts MATCH ? LIMIT ?',(q,limit)).fetchall(); return [SourceDocument.model_validate_json(r['data']) for r in rows]
     def put_run(self,r: AnalysisRun):
-        self.conn.execute('INSERT OR REPLACE INTO runs VALUES(?,?,?,?,?)',(r.id,r.project_id,r.participant_id,r.idempotency_key,r.model_dump_json())); self.conn.commit(); return r
+        self.conn.execute(
+            '''INSERT INTO runs(id,project_id,participant_id,idem,data) VALUES(?,?,?,?,?)
+               ON CONFLICT(id) DO UPDATE SET project_id=excluded.project_id,
+               participant_id=excluded.participant_id, idem=excluded.idem, data=excluded.data''',
+            (r.id,r.project_id,r.participant_id,r.idempotency_key,r.model_dump_json()))
+        self.conn.commit(); return r
+
+    def create_run_atomic(self, r: AnalysisRun) -> AnalysisRun:
+        try:
+            self.conn.execute(
+                'INSERT INTO runs(id,project_id,participant_id,idem,data) VALUES(?,?,?,?,?)',
+                (r.id, r.project_id, r.participant_id, r.idempotency_key, r.model_dump_json()),
+            )
+            self.conn.commit()
+            return r
+        except sqlite3.IntegrityError:
+            self.conn.rollback()
+            existing = self.get_run_by_idem(r.project_id, r.idempotency_key)
+            if existing is not None:
+                return existing
+            raise
     def get_run(self,rid):
         r=self.conn.execute('SELECT data FROM runs WHERE id=?',(rid,)).fetchone(); return AnalysisRun.model_validate_json(r['data']) if r else None
     def get_run_by_idem(self,project_id,idem):
@@ -96,7 +124,13 @@ class Store:
     def withdraw(self,project_id,pid):
         p=self.get_participant(project_id,pid)
         if not p:return None
-        p.withdrawn_at=datetime.now(timezone.utc).isoformat(); p.consent_scope.withdrawn_at=p.withdrawn_at; self.put_participant(p)
+        p.withdrawn_at=datetime.now(timezone.utc).isoformat(); p.consent_scope.withdrawn_at=p.withdrawn_at
+        with self.conn:
+            self.conn.execute('DELETE FROM spans WHERE document_id IN (SELECT id FROM documents WHERE project_id=? AND participant_id=?)', (project_id, pid))
+            self.conn.execute('DELETE FROM document_fts WHERE document_id IN (SELECT id FROM documents WHERE project_id=? AND participant_id=?)', (project_id, pid))
+            self.conn.execute('DELETE FROM documents WHERE project_id=? AND participant_id=?', (project_id, pid))
+            self.conn.execute('DELETE FROM runs WHERE project_id=? AND participant_id=?', (project_id, pid))
+            self.conn.execute('UPDATE participants SET data=? WHERE project_id=? AND id=?', (p.model_dump_json(), project_id, pid))
         return p
 
 def checksum(text): return hashlib.sha256(text.encode('utf-8')).hexdigest()

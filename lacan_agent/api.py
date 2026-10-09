@@ -1,9 +1,11 @@
 from __future__ import annotations
-import asyncio, os, uuid
-from fastapi import FastAPI, HTTPException, Request, UploadFile, File
+import os, tempfile, uuid
+from datetime import datetime, timezone
+from pathlib import Path
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
-from .db import Store, checksum, new_id
+from pydantic import BaseModel, Field
+from .db import Store
 from .models import *
 from .rag import ingest, search
 from .workflow import Workflow
@@ -11,10 +13,43 @@ from .concurrent import ConcurrentAnalyzer, AnalysisTask
 app=FastAPI(title='Lacan-Agent',version='0.2.0')
 store=Store(); flow=Workflow(store)
 class ProjectIn(BaseModel): id:str; owner_id:str='local-user'; policy_version:str='1.0'
-class TheoryIn(BaseModel): path:str; project_id:str
 class ParticipantIn(BaseModel): id:str; project_id:str; pseudonym:str|None=None; consent_scope:ConsentScope=ConsentScope()
-class SourceIn(BaseModel): path:str; project_id:str
 class RunIn(BaseModel): project_id:str; participant_id:str; source_ids:list[str]; mode:str='evidence_first'; idempotency_key:str
+
+MAX_UPLOAD_BYTES = int(os.getenv('LACAN_MAX_UPLOAD_BYTES', str(10 * 1024 * 1024)))
+UPLOAD_SUFFIXES = {'.txt', '.md', '.pdf'}
+UPLOAD_ROOT = Path(os.getenv('LACAN_STORAGE_PATH', '.api/uploads')).resolve()
+
+def _ingest_upload(file: UploadFile, project_id: str, participant_id: str | None = None, consent=None):
+    suffix = Path(file.filename or '').suffix.lower()
+    if suffix not in UPLOAD_SUFFIXES:
+        raise ValueError('UNSUPPORTED_SOURCE_TYPE')
+    data = file.file.read(MAX_UPLOAD_BYTES + 1)
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise ValueError('SOURCE_TOO_LARGE')
+    UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
+    temp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=UPLOAD_ROOT, suffix=suffix, delete=False) as tmp:
+            tmp.write(data)
+            temp_path = Path(tmp.name)
+        return ingest(store, str(temp_path), project_id, participant_id, consent)
+    finally:
+        if temp_path:
+            temp_path.unlink(missing_ok=True)
+
+def _consent_active(scope: ConsentScope) -> bool:
+    if scope.withdrawn_at or not scope.research_analysis:
+        return False
+    if not scope.expires_at:
+        return True
+    try:
+        expiry = datetime.fromisoformat(scope.expires_at.replace('Z', '+00:00'))
+        if expiry.tzinfo is None:
+            expiry = expiry.replace(tzinfo=timezone.utc)
+        return expiry > datetime.now(timezone.utc)
+    except ValueError:
+        return False
 
 def err(status,code,msg):
     rid='req_'+uuid.uuid4().hex[:10]
@@ -31,9 +66,9 @@ def project(x:ProjectIn):
     if store.get_project(x.id): raise HTTPException(400,'PROJECT_EXISTS')
     return store.create_project(Project(**x.model_dump())).model_dump()
 @app.post('/api/v1/theory/sources',status_code=202)
-def theory(x:TheoryIn):
-    if not store.get_project(x.project_id): raise HTTPException(404,'PROJECT_NOT_FOUND')
-    try:return ingest(store,x.path,x.project_id).model_dump(exclude={'text'})
+def theory(project_id: str = Form(...), file: UploadFile = File(...)):
+    if not store.get_project(project_id): raise HTTPException(404,'PROJECT_NOT_FOUND')
+    try:return _ingest_upload(file, project_id).model_dump(exclude={'text'})
     except ValueError as e: raise HTTPException(422,str(e))
 @app.get('/api/v1/theory/search')
 def theory_search(project_id:str,q:str,limit:int=5): return {'items':search(store,q,min(limit,5))}
@@ -42,11 +77,11 @@ def participant(x:ParticipantIn):
     if not store.get_project(x.project_id):raise HTTPException(404,'PROJECT_NOT_FOUND')
     return store.put_participant(Participant(id=x.id,project_id=x.project_id,pseudonym=x.pseudonym or x.id,consent_scope=x.consent_scope)).model_dump()
 @app.post('/api/v1/participants/{pid}/sources',status_code=202)
-def source(pid:str,x:SourceIn):
-    p=store.get_participant(x.project_id,pid)
+def source(pid:str, project_id: str = Form(...), file: UploadFile = File(...)):
+    p=store.get_participant(project_id,pid)
     if not p:raise HTTPException(404,'PARTICIPANT_NOT_FOUND')
-    if p.withdrawn_at or not p.consent_scope.research_analysis:return err(403,'CONSENT_REQUIRED','授权不足')
-    try:return ingest(store,x.path,x.project_id,pid,p.consent_scope).model_dump(exclude={'text'})
+    if p.withdrawn_at or not _consent_active(p.consent_scope):return err(403,'CONSENT_REQUIRED','授权不足')
+    try:return _ingest_upload(file, project_id, pid, p.consent_scope).model_dump(exclude={'text'})
     except ValueError as e: raise HTTPException(422,str(e))
 @app.post('/api/v1/analysis-runs',status_code=202)
 def analysis(x:RunIn):
@@ -72,7 +107,7 @@ def withdraw(pid:str,project_id:str):
     if not p:raise HTTPException(404,'PARTICIPANT_NOT_FOUND')
     return {'participant_id':pid,'state':'WITHDRAWAL_REQUESTED'}
 class BatchTaskIn(BaseModel): project_id:str; participant_id:str; source_ids:list[str]; idempotency_key:str
-class BatchIn(BaseModel): tasks:list[BatchTaskIn]; max_concurrent:int=4
+class BatchIn(BaseModel): tasks:list[BatchTaskIn]; max_concurrent:int=Field(default=4, ge=1, le=16)
 @app.post('/api/v1/analysis-runs/batch',status_code=202)
 async def batch_analysis(x:BatchIn):
     analyzer=ConcurrentAnalyzer(store,max_concurrent=x.max_concurrent)

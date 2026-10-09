@@ -112,7 +112,14 @@ def execute(args: argparse.Namespace) -> Any:
         from .interactive import run_interactive
         return run_interactive(args.db)
     store = Store(args.db)
-    flow = Workflow(store)
+    provider = None
+    if getattr(args, 'mock', False):
+        from .llm import FakeProvider
+        provider = FakeProvider()
+    elif os.environ.get("DASHSCOPE_API_KEY"):
+        from .llm import QwenProvider
+        provider = QwenProvider()
+    flow = Workflow(store, provider)
     cmd = args.command
     if cmd == "init":
         return _ensure_project(store, args.project).model_dump()

@@ -94,7 +94,11 @@ powershell -ExecutionPolicy Bypass -File .\start.ps1
 uvicorn lacan_agent.api:app --reload
 ```
 
+API 默认面向本机使用。理论文献和参与者文本通过 `multipart/form-data` 上传，支持 `.txt`、`.md`、`.pdf`，默认单文件上限为 10 MiB（可用 `LACAN_MAX_UPLOAD_BYTES` 调整）；不会接受服务器任意路径。
+
 默认数据库路径 `./data/lacan.db`，可通过 `--db` 或 `LACAN_DB_PATH` 环境变量覆盖。
+
+参与者撤回后，系统会删除其原始文档、证据片段、全文索引和分析运行，仅保留最小化的撤回审计记录；撤回后的参与者不能继续分析、审核或导出。
 
 **批量分析端点:**
 

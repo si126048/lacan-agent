@@ -1,10 +1,11 @@
 from __future__ import annotations
 import logging
+from datetime import datetime, timezone
 from .db import Store, new_id
 from .models import (
     AnalysisRun, AnalysisPacket, RunState, ReviewStatus, ReviewDecision,
     ReviewRequest, EvidenceSpan, Observation, Hypothesis,
-    GraphNode, GraphEdge, NarrativeOperator,
+    GraphNode, GraphEdge, NarrativeOperator, Counterexample,
 )
 from .llm import FakeProvider, EVIDENCE_SYSTEM, INTERPRETER_SYSTEM, CRITIC_SYSTEM
 from .rag import validate_span
@@ -12,6 +13,40 @@ from .fuzzy import MembershipFunction, aggregate_grounding, HallucinationGuard, 
 from .annotation import CulturalAnnotator
 
 logger = logging.getLogger(__name__)
+
+
+def _coerce_str_list(values: list) -> list[str]:
+    return [str(v) for v in values]
+
+
+def _sanitize_observation(d: dict) -> dict:
+    d = dict(d)
+    if 'evidence_span_ids' not in d or not d['evidence_span_ids']:
+        d['evidence_span_ids'] = []
+    else:
+        d['evidence_span_ids'] = _coerce_str_list(d['evidence_span_ids'])
+    return d
+
+
+def _sanitize_hypothesis(d: dict) -> dict:
+    d = dict(d)
+    for key in ('support_ids', 'concept_ids', 'theory_reference_ids', 'matheme_ids'):
+        if key in d:
+            d[key] = _coerce_str_list(d[key])
+    if 'points_de_capiton' in d:
+        d['points_de_capiton'] = [
+            {**pc, 'fixation_span_ids': _coerce_str_list(pc.get('fixation_span_ids', []))}
+            for pc in d['points_de_capiton']
+        ]
+    if 'counterexamples' in d:
+        d['counterexamples'] = [
+            item if isinstance(item, dict) else {
+                'id': f"ce_{d.get('id', 'hyp')}_{index + 1}",
+                'text': str(item), 'source': 'llm'
+            }
+            for index, item in enumerate(d['counterexamples'])
+        ]
+    return d
 
 
 class Workflow:
@@ -30,7 +65,7 @@ class Workflow:
             return existing
 
         p = self.store.get_participant(project_id, participant_id)
-        if not p or p.withdrawn_at or not p.consent_scope.research_analysis:
+        if not p or p.withdrawn_at or p.consent_scope.withdrawn_at or not p.consent_scope.research_analysis or self._consent_expired(p.consent_scope.expires_at):
             raise PermissionError('CONSENT_REQUIRED')
 
         docs = [self.store.get_document(x) for x in source_ids]
@@ -41,23 +76,67 @@ class Workflow:
             id=new_id('run'), project_id=project_id, participant_id=participant_id,
             source_ids=source_ids, state=RunState.CREATED, idempotency_key=idem,
         )
-        self.store.put_run(r)
+        created = self.store.create_run_atomic(r)
+        if created.id != r.id:
+            return created
         self._set(r, RunState.INGESTED, 'audit complete')
 
         spans = self._collect_evidence(docs)
         obs = self._observe(r, spans)
+        self._validate_observations(obs, {s.id for s in spans})
         annotations = self._annotate(spans)
         hyps = self._interpret(r, obs, project_id, annotations)
+        self._validate_hypotheses(hyps, obs, project_id)
         hyps = self._critique(r, obs, hyps)
         return self._finalize(r, participant_id, obs, hyps, spans, annotations)
 
-    def _collect_evidence(self, docs: list) -> list[EvidenceSpan]:
+    @staticmethod
+    def _consent_expired(expires_at: str | None) -> bool:
+        if not expires_at:
+            return False
+        try:
+            expiry = datetime.fromisoformat(expires_at.replace('Z', '+00:00'))
+            if expiry.tzinfo is None:
+                expiry = expiry.replace(tzinfo=timezone.utc)
+            return expiry <= datetime.now(timezone.utc)
+        except ValueError:
+            return True
+
+    @staticmethod
+    def _validate_observations(observations: list[Observation], span_ids: set[str]) -> None:
+        for observation in observations:
+            if not set(observation.evidence_span_ids) <= span_ids:
+                raise ValueError(f'INVALID_EVIDENCE_REFERENCE:{observation.id}')
+
+    def _validate_hypotheses(self, hypotheses: list[Hypothesis], observations: list[Observation], project_id: str) -> None:
+        observation_ids = {o.id for o in observations}
+        theory_ids = {s.id for s in self.store.list_theory_spans(project_id)}
+        valid_discourses = {'master', 'university', 'hysteric', 'analyst', None}
+        for hypothesis in hypotheses:
+            if not set(hypothesis.support_ids) <= observation_ids:
+                raise ValueError(f'INVALID_SUPPORT_REFERENCE:{hypothesis.id}')
+            if not set(hypothesis.theory_reference_ids) <= theory_ids:
+                raise ValueError(f'INVALID_THEORY_REFERENCE:{hypothesis.id}')
+            if hypothesis.discourse_type not in valid_discourses:
+                raise ValueError(f'INVALID_DISCOURSE_TYPE:{hypothesis.id}')
+            if not hypothesis.support_ids:
+                hypothesis.status = ReviewStatus.NEEDS_REVISION
+
+    def _collect_evidence(self, docs: list, max_spans: int = 200, max_chars: int = 50000) -> list[EvidenceSpan]:
         spans: list[EvidenceSpan] = []
+        total_chars = 0
         for d in docs:
-            spans.extend(self.store.list_spans_for_document(d.id))
-        valid = [s for s in spans if validate_span(self.store, s.id)]
-        logger.debug("evidence: %d total spans, %d valid", len(spans), len(valid))
-        return valid
+            doc_spans = self.store.list_spans_for_document(d.id)
+            for s in doc_spans:
+                if len(spans) >= max_spans or total_chars >= max_chars:
+                    break
+                if validate_span(self.store, s.id):
+                    spans.append(s)
+                    total_chars += len(s.excerpt)
+            if len(spans) >= max_spans or total_chars >= max_chars:
+                break
+        logger.info("evidence: collected %d valid spans (%d chars)", len(spans), total_chars)
+        return spans
 
     def _observe(self, r: AnalysisRun, spans: list[EvidenceSpan]) -> list[Observation]:
         sample = spans[:50]
@@ -67,7 +146,7 @@ class Workflow:
             {'span_ids': [s.id for s in spans], 'spans_text': spans_text},
             Observation, {'stage': 'evidence'},
         )
-        obs = [Observation.model_validate(x) for x in ev['observations']]
+        obs = [Observation.model_validate(_sanitize_observation(x)) for x in ev['observations']]
         self._set(r, RunState.OBSERVED, 'evidence spans validated')
         logger.info("observations: %d", len(obs))
         return obs
@@ -102,7 +181,7 @@ class Workflow:
             },
             Hypothesis, {'stage': 'interpreter'},
         )
-        hyps = [Hypothesis.model_validate(x) for x in hyp['hypotheses']]
+        hyps = [Hypothesis.model_validate(_sanitize_hypothesis(x)) for x in hyp['hypotheses']]
         self._set(r, RunState.INTERPRETED, 'structured hypotheses generated')
         logger.info("hypotheses: %d", len(hyps))
         return hyps
@@ -121,7 +200,14 @@ class Workflow:
         )
         crit_by_hyp = crit.get('counterexamples_by_hypothesis', {})
         for h in hyps:
-            h.counterexamples.extend(crit_by_hyp.get(h.id, crit.get('counterexamples', [])))
+            for index, item in enumerate(crit_by_hyp.get(h.id, crit.get('counterexamples', []))):
+                if isinstance(item, dict):
+                    payload = dict(item)
+                    payload.setdefault('id', f'ce_{h.id}_{index + 1}')
+                    h.counterexamples.append(Counterexample.model_validate(payload))
+                else:
+                    h.counterexamples.append(Counterexample(
+                        id=f'ce_{h.id}_{index + 1}', text=str(item), source='llm'))
         r.topology['critic_disconfirmation'] = crit.get('fuzzy_disconfirmation_by_hypothesis', {})
         r.topology['critic_grounding'] = crit.get('grounding_assessment_by_hypothesis', {})
         r.topology['critic_ungrounded'] = crit.get('ungrounded_claims_by_hypothesis', {})
@@ -134,10 +220,24 @@ class Workflow:
         mf = MembershipFunction()
         guard = HallucinationGuard()
         hallucination_reports = []
+        obs_by_id = {o.id: o for o in obs}
+        span_by_id = {s.id: s for s in spans}
 
         for h in hyps:
-            groundings = [mf.compute(h, s, obs) for s in spans if s.id in h.support_ids]
-            counter_groundings = [mf.compute(h, s, obs) for s in spans if s.id in h.counterexamples]
+            supported_span_ids: list[str] = []
+            for sid in h.support_ids:
+                if sid in span_by_id:
+                    supported_span_ids.append(sid)
+                elif sid in obs_by_id:
+                    supported_span_ids.extend(
+                        eid for eid in obs_by_id[sid].evidence_span_ids if eid in span_by_id
+                    )
+            groundings = [mf.compute(h, span_by_id[sid], obs) for sid in supported_span_ids]
+            counter_span_ids = {
+                span_id for counterexample in h.counterexamples
+                for span_id in counterexample.evidence_span_ids if span_id in span_by_id
+            }
+            counter_groundings = [mf.compute(h, span_by_id[sid], obs) for sid in counter_span_ids]
             h.grounding_score = aggregate_grounding(groundings, counter_groundings)
             h.fuzzy_groundings = [
                 {"span_id": g.evidence_span_id, "membership": g.membership, "components": g.components}
@@ -156,6 +256,16 @@ class Workflow:
             cultural_annotations=annotations or [],
         )
         r.packet = packet
+        r.topology['computed'] = {
+            'evidence_span_count': len(spans),
+            'observation_count': len(obs),
+            'hypothesis_count': len(hyps),
+            'grounded_hypothesis_ids': [h.id for h in hyps if h.grounding_score > 0],
+        }
+        r.topology['model_proposed'] = {
+            'discourse_types': {h.id: h.discourse_type for h in hyps},
+            'matheme_ids': {h.id: h.matheme_ids for h in hyps},
+        }
         self._set(r, RunState.NEEDS_HUMAN_REVIEW, 'awaiting human review')
         return r
 
@@ -188,7 +298,7 @@ class Workflow:
         if r.state not in (RunState.APPROVED, RunState.COMPILED):
             raise PermissionError('NOT_APPROVED')
         p = self.store.get_participant(r.project_id, r.participant_id)
-        if not p or not p.consent_scope.generation:
+        if not p or p.withdrawn_at or p.consent_scope.withdrawn_at or not p.consent_scope.generation:
             raise PermissionError('GENERATION_NOT_CONSENTED')
         nodes: list[GraphNode] = []
         edges: list[GraphEdge] = []

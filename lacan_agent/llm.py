@@ -1,5 +1,5 @@
 from __future__ import annotations
-import json, logging, os, textwrap
+import json, logging, os, textwrap, time
 from typing import Protocol, Type
 from .models import *
 
@@ -84,34 +84,44 @@ CRITIC_SYSTEM = textwrap.dedent("""\
 class QwenProvider:
     """通义千问 LLM Provider via DashScope OpenAI-compatible API."""
 
-    def __init__(self, api_key: str | None = None, model: str = "qwen-plus", base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"):
+    def __init__(self, api_key: str | None = None, model: str | None = None,
+                 base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1",
+                 timeout: float | None = None, max_retries: int | None = None):
         from openai import OpenAI
         self.api_key = api_key or os.environ.get("DASHSCOPE_API_KEY", "")
         if not self.api_key:
             raise ValueError("DASHSCOPE_API_KEY is required for QwenProvider")
-        self.model = model
-        self.client = OpenAI(api_key=self.api_key, base_url=base_url)
+        self.model = model or os.environ.get('LACAN_MODEL', 'qwen-plus')
+        self.timeout = timeout if timeout is not None else float(os.environ.get('LACAN_LLM_TIMEOUT', '60'))
+        self.max_retries = max_retries if max_retries is not None else int(os.environ.get('LACAN_LLM_RETRIES', '2'))
+        self.client = OpenAI(api_key=self.api_key, base_url=base_url, timeout=self.timeout, max_retries=0)
 
     def _call(self, system: str, user_content: str) -> dict:
-        try:
-            resp = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": system},
-                    {"role": "user", "content": user_content},
-                ],
-                temperature=0.3,
-                response_format={"type": "json_object"},
-            )
-        except Exception as exc:
-            logger.warning("LLM API call failed: %s", exc)
-            raise RuntimeError(f"LLM_API_ERROR: {exc}") from exc
-        text = resp.choices[0].message.content
-        try:
-            return json.loads(text)
-        except json.JSONDecodeError as exc:
-            logger.warning("LLM returned invalid JSON: %s", exc)
-            raise RuntimeError(f"LLM_INVALID_JSON: {exc}") from exc
+        last_error: Exception | None = None
+        for attempt in range(self.max_retries + 1):
+            try:
+                resp = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": system},
+                        {"role": "user", "content": user_content[:12000]},
+                    ],
+                    temperature=float(os.environ.get('LACAN_TEMPERATURE', '0.3')),
+                    response_format={"type": "json_object"},
+                )
+                text = resp.choices[0].message.content or ''
+                return json.loads(text)
+            except json.JSONDecodeError as exc:
+                last_error = exc
+                logger.warning("LLM returned invalid JSON (attempt %d)", attempt + 1)
+            except Exception as exc:
+                last_error = exc
+                logger.warning("LLM API call failed (attempt %d): %s", attempt + 1, type(exc).__name__)
+            if attempt < self.max_retries:
+                time.sleep(2 ** attempt)
+        if isinstance(last_error, json.JSONDecodeError):
+            raise RuntimeError("LLM_INVALID_JSON: provider returned invalid JSON") from last_error
+        raise RuntimeError("LLM_API_ERROR: provider request failed after retries") from last_error
 
     def generate_structured(self, system_prompt, user_payload, output_schema, run_context):
         stage = run_context.get('stage')

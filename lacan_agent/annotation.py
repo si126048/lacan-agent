@@ -74,7 +74,7 @@ class CulturalAnnotator:
                     if key not in seen:
                         seen.add(key)
                         self._counter += 1
-                        annotations.append(CulturalAnnotation(
+                        annotation = CulturalAnnotation(
                             id=f"ca_{self._counter:04d}",
                             span_id=span.id,
                             entity_name=entry.name,
@@ -82,7 +82,9 @@ class CulturalAnnotator:
                             confidence=1.0,
                             context_brief=entry.context,
                             source="gazetteer",
-                        ))
+                        )
+                        if annotation.confidence >= self._confidence_threshold:
+                            annotations.append(annotation)
 
         logger.info("annotated %d spans, found %d cultural references",
                      len(spans), len(annotations))

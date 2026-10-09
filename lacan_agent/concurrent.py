@@ -33,6 +33,8 @@ class BatchResult:
 
 class ConcurrentAnalyzer:
     def __init__(self, store: Store, provider=None, max_concurrent: int = 4):
+        if not 1 <= max_concurrent <= 16:
+            raise ValueError('max_concurrent must be between 1 and 16')
         self.store = store
         self.provider = provider
         self.max_concurrent = max_concurrent
@@ -80,7 +82,8 @@ class RateLimitedWorkflow:
     async def run(self, project_id: str, participant_id: str,
                   source_ids: list[str], idem: str) -> AnalysisRun:
         loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(
-            None,
-            lambda: self._workflow.run(project_id, participant_id, source_ids, idem),
-        )
+        async with self._semaphore:
+            return await loop.run_in_executor(
+                None,
+                lambda: self._workflow.run(project_id, participant_id, source_ids, idem),
+            )

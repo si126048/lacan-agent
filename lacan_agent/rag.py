@@ -101,10 +101,15 @@ def ingest(store: Store, path: str, project_id: str, participant_id: str|None=No
 
 
 def search(store: Store, q: str, limit: int = 5) -> list[dict]:
+    q = q.strip()
+    if not q:
+        return []
+    # Treat user input as terms rather than raw FTS5 syntax.
+    safe_query = ' '.join(f'"{term.replace(chr(34), "")}"' for term in q.split())
     rows = store.conn.execute(
         "SELECT d.data, snippet(document_fts, 1, '**', '**', '...', 32) as snip "
         "FROM document_fts JOIN documents d ON d.id = document_fts.document_id "
-        "WHERE document_fts MATCH ? LIMIT ?", (q, limit)
+        "WHERE document_fts MATCH ? LIMIT ?", (safe_query, max(1, min(limit, 100)))
     ).fetchall()
     out = []
     for r in rows:

@@ -51,14 +51,56 @@ class ConceptCard(BaseModel):
     id: str; canonical_name: str; definition: str; theoretical_period: str = 'unspecified'; source_span_ids: list[str] = []; review_status: str = 'draft'
 class Observation(BaseModel):
     id: str; label: str; evidence_span_ids: list[str]
+    register: str | None = None
+    register_markers: list[str] = Field(default_factory=list)
+class Counterexample(BaseModel):
+    id: str
+    text: str
+    evidence_span_ids: list[str] = Field(default_factory=list)
+    disconfirmation_score: float = 0.0
+    source: str = 'llm'
+
+    @model_validator(mode='after')
+    def _validate_score(self):
+        if not 0.0 <= self.disconfirmation_score <= 1.0:
+            raise ValueError('disconfirmation_score must be in [0, 1]')
+        if self.source not in {'llm', 'human'}:
+            raise ValueError("source must be 'llm' or 'human'")
+        return self
+
+    def __contains__(self, value: str) -> bool:
+        return value in self.text or value in self.id
 class Hypothesis(BaseModel):
-    id: str; concept_ids: list[str]; support_ids: list[str]; alternatives: list[str]; counterexamples: list[str] = []; status: ReviewStatus = ReviewStatus.PROVISIONAL; theory_reference_ids: list[str] = []; discourse_type: str | None = None; desire_residual: DesireResidual | None = None; points_de_capiton: list[PointDeCapiton] = []; matheme_ids: list[str] = []; grounding_score: float = 0.0; fuzzy_groundings: list[dict[str, Any]] = []
+    id: str; concept_ids: list[str]; support_ids: list[str]; alternatives: list[str]
+    counterexamples: list[Counterexample] = Field(default_factory=list)
+    status: ReviewStatus = ReviewStatus.PROVISIONAL
+    theory_reference_ids: list[str] = Field(default_factory=list)
+    discourse_type: str | None = None
+    desire_residual: DesireResidual | None = None
+    points_de_capiton: list[PointDeCapiton] = Field(default_factory=list)
+    matheme_ids: list[str] = Field(default_factory=list)
+    grounding_score: float = 0.0
+    fuzzy_groundings: list[dict[str, Any]] = Field(default_factory=list)
+
+    @model_validator(mode='before')
+    @classmethod
+    def _coerce_counterexamples(cls, values):
+        if isinstance(values, dict) and 'counterexamples' in values:
+            values = dict(values)
+            values['counterexamples'] = [
+                item if isinstance(item, dict) else {
+                    'id': f"ce_{values.get('id', 'hyp')}_{index + 1}",
+                    'text': str(item), 'source': 'llm'
+                }
+                for index, item in enumerate(values['counterexamples'])
+            ]
+        return values
 class GraphNode(BaseModel):
     id: str; type: str; label: str; source_ids: list[str] = []; status: str = 'provisional'
 class GraphEdge(BaseModel):
     id: str; source: str; target: str; type: str; evidence_span_ids: list[str]; weight: float | None = None
 class NarrativeOperator(BaseModel):
-    id: str; operator: str; source_finding_ids: list[str]; allowed: bool = False; use_cases: list[str] = []; counterexamples: list[str] = []; approval_state: str = 'provisional'
+    id: str; operator: str; source_finding_ids: list[str]; allowed: bool = False; use_cases: list[str] = []; counterexamples: list[Counterexample] = Field(default_factory=list); approval_state: str = 'provisional'
 class PointDeCapiton(BaseModel):
     id: str; signifier: str; fixation_span_ids: list[str] = []; duration: int = 0; centrality: float = 0.0
 class DesireResidual(BaseModel):
