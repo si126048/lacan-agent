@@ -8,6 +8,8 @@ from .models import (
 )
 from .llm import FakeProvider, EVIDENCE_SYSTEM, INTERPRETER_SYSTEM, CRITIC_SYSTEM
 from .rag import validate_span
+from .fuzzy import MembershipFunction, aggregate_grounding, HallucinationGuard, FuzzyGrounding
+from .annotation import CulturalAnnotator
 
 logger = logging.getLogger(__name__)
 
@@ -44,9 +46,10 @@ class Workflow:
 
         spans = self._collect_evidence(docs)
         obs = self._observe(r, spans)
-        hyps = self._interpret(r, obs, project_id)
+        annotations = self._annotate(spans)
+        hyps = self._interpret(r, obs, project_id, annotations)
         hyps = self._critique(r, obs, hyps)
-        return self._finalize(r, participant_id, obs, hyps)
+        return self._finalize(r, participant_id, obs, hyps, spans, annotations)
 
     def _collect_evidence(self, docs: list) -> list[EvidenceSpan]:
         spans: list[EvidenceSpan] = []
@@ -69,10 +72,25 @@ class Workflow:
         logger.info("observations: %d", len(obs))
         return obs
 
-    def _interpret(self, r: AnalysisRun, obs: list[Observation], project_id: str) -> list[Hypothesis]:
+    def _annotate(self, spans: list[EvidenceSpan]) -> list:
+        try:
+            annotator = CulturalAnnotator()
+            return annotator.annotate(spans)
+        except Exception:
+            logger.warning("cultural annotation failed, continuing without annotations")
+            return []
+
+    def _interpret(self, r: AnalysisRun, obs: list[Observation], project_id: str,
+                   annotations: list | None = None) -> list[Hypothesis]:
         theory_spans = self.store.list_theory_spans(project_id)
         theory_refs = [s.id for s in theory_spans]
         theory_text = '\n'.join(s.excerpt for s in theory_spans)
+        annotation_context = ""
+        if annotations:
+            annotation_context = "\n".join(
+                f"[{a.entity_name}] ({a.entity_type}): {a.context_brief}"
+                for a in annotations
+            )
         hyp = self.provider.generate_structured(
             INTERPRETER_SYSTEM,
             {
@@ -80,6 +98,7 @@ class Workflow:
                 'theory_reference_ids': theory_refs,
                 'observation_labels': [o.label for o in obs],
                 'theory_text': theory_text,
+                'cultural_annotations': annotation_context,
             },
             Hypothesis, {'stage': 'interpreter'},
         )
@@ -103,13 +122,38 @@ class Workflow:
         crit_by_hyp = crit.get('counterexamples_by_hypothesis', {})
         for h in hyps:
             h.counterexamples.extend(crit_by_hyp.get(h.id, crit.get('counterexamples', [])))
+        r.topology['critic_disconfirmation'] = crit.get('fuzzy_disconfirmation_by_hypothesis', {})
+        r.topology['critic_grounding'] = crit.get('grounding_assessment_by_hypothesis', {})
+        r.topology['critic_ungrounded'] = crit.get('ungrounded_claims_by_hypothesis', {})
         self._set(r, RunState.CRITIQUED, 'independent counterexample pass complete')
         return hyps
 
-    def _finalize(self, r: AnalysisRun, participant_id: str, obs: list[Observation], hyps: list[Hypothesis]) -> AnalysisRun:
+    def _finalize(self, r: AnalysisRun, participant_id: str, obs: list[Observation],
+                  hyps: list[Hypothesis], spans: list[EvidenceSpan],
+                  annotations: list | None = None) -> AnalysisRun:
+        mf = MembershipFunction()
+        guard = HallucinationGuard()
+        hallucination_reports = []
+
+        for h in hyps:
+            groundings = [mf.compute(h, s, obs) for s in spans if s.id in h.support_ids]
+            counter_groundings = [mf.compute(h, s, obs) for s in spans if s.id in h.counterexamples]
+            h.grounding_score = aggregate_grounding(groundings, counter_groundings)
+            h.fuzzy_groundings = [
+                {"span_id": g.evidence_span_id, "membership": g.membership, "components": g.components}
+                for g in groundings
+            ]
+            report = guard.check(h, groundings)
+            hallucination_reports.append(report.to_dict())
+            if report.risk_level == "high":
+                h.status = ReviewStatus.NEEDS_REVISION
+                logger.warning("hypothesis %s flagged high hallucination risk (score=%.3f)", h.id, h.grounding_score)
+
         packet = AnalysisPacket(
             run_id=r.id, participant_id=participant_id,
             state=RunState.NEEDS_HUMAN_REVIEW, observations=obs, hypotheses=hyps,
+            hallucination_reports=hallucination_reports,
+            cultural_annotations=annotations or [],
         )
         r.packet = packet
         self._set(r, RunState.NEEDS_HUMAN_REVIEW, 'awaiting human review')
@@ -152,8 +196,17 @@ class Workflow:
         obs_by_id = {o.id: o for o in r.packet.observations}
         for o in r.packet.observations:
             nodes.append(GraphNode(id=o.id, type='signifier', label=o.label, source_ids=o.evidence_span_ids, status='approved'))
+        discourse_trajectory = []
         for h in r.packet.hypotheses:
             nodes.append(GraphNode(id=h.id, type='interpretation', label=h.id, source_ids=h.support_ids, status='approved'))
+            if h.discourse_type:
+                discourse_trajectory.append(h.discourse_type)
+            for mid in h.matheme_ids:
+                nodes.append(GraphNode(id=mid, type='matheme', label=mid, status='approved'))
+                edges.append(GraphEdge(id=new_id('edge'), source=mid, target=h.id, type='matheme', evidence_span_ids=[]))
+            for pc in h.points_de_capiton:
+                nodes.append(GraphNode(id=pc.id, type='capiton_point', label=pc.signifier, source_ids=pc.fixation_span_ids, status='approved'))
+                edges.append(GraphEdge(id=new_id('edge'), source=pc.id, target=h.id, type='capiton', evidence_span_ids=pc.fixation_span_ids))
             for sid in h.support_ids:
                 evidence = obs_by_id.get(sid).evidence_span_ids if obs_by_id.get(sid) else []
                 if evidence:
@@ -163,13 +216,26 @@ class Workflow:
                 allowed=True, use_cases=['在有跨情境证据时重现叙事关系'],
                 counterexamples=h.counterexamples, approval_state='approved',
             ))
+        prev_disc = None
+        for dt in discourse_trajectory:
+            if prev_disc and prev_disc != dt:
+                edges.append(GraphEdge(id=new_id('edge'), source=prev_disc, target=dt, type='discourse_rotation', evidence_span_ids=[]))
+            prev_disc = dt
         r.packet.narrative_operators = ops
         r.state = RunState.COMPILED
         r.packet.state = RunState.COMPILED
         self.store.put_run(r)
         logger.info("export: run=%s compiled", rid)
+        topology = dict(r.topology)
+        topology['discourse_trajectory'] = discourse_trajectory
+        topology['capiton_points'] = [
+            pc.model_dump() for h in r.packet.hypotheses for pc in h.points_de_capiton
+        ]
         return {
             'run_id': rid,
             'packet': r.packet.model_dump(mode='json'),
             'graph': {'nodes': [n.model_dump() for n in nodes], 'edges': [e.model_dump() for e in edges]},
+            'topology': topology,
+            'annotations': [a.model_dump(mode='json') for a in r.packet.cultural_annotations],
+            'hallucination_reports': r.packet.hallucination_reports,
         }

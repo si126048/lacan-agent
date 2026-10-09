@@ -7,7 +7,8 @@ from .db import Store, checksum, new_id
 from .models import *
 from .rag import ingest, search
 from .workflow import Workflow
-app=FastAPI(title='Lacan-Agent',version='0.1.0')
+from .concurrent import ConcurrentAnalyzer, AnalysisTask
+app=FastAPI(title='Lacan-Agent',version='0.2.0')
 store=Store(); flow=Workflow(store)
 class ProjectIn(BaseModel): id:str; owner_id:str='local-user'; policy_version:str='1.0'
 class TheoryIn(BaseModel): path:str; project_id:str
@@ -70,3 +71,11 @@ def withdraw(pid:str,project_id:str):
     p=store.withdraw(project_id,pid)
     if not p:raise HTTPException(404,'PARTICIPANT_NOT_FOUND')
     return {'participant_id':pid,'state':'WITHDRAWAL_REQUESTED'}
+class BatchTaskIn(BaseModel): project_id:str; participant_id:str; source_ids:list[str]; idempotency_key:str
+class BatchIn(BaseModel): tasks:list[BatchTaskIn]; max_concurrent:int=4
+@app.post('/api/v1/analysis-runs/batch',status_code=202)
+async def batch_analysis(x:BatchIn):
+    analyzer=ConcurrentAnalyzer(store,max_concurrent=x.max_concurrent)
+    atasks=[AnalysisTask(project_id=t.project_id,participant_id=t.participant_id,source_ids=t.source_ids,idempotency_key=t.idempotency_key) for t in x.tasks]
+    results=await analyzer.analyze_batch(atasks)
+    return {'results':[{'participant_id':r.task.participant_id,'run_id':r.run.id if r.run else None,'state':r.run.state if r.run else None,'error':r.error} for r in results]}

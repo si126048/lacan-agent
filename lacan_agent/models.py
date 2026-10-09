@@ -52,18 +52,36 @@ class ConceptCard(BaseModel):
 class Observation(BaseModel):
     id: str; label: str; evidence_span_ids: list[str]
 class Hypothesis(BaseModel):
-    id: str; concept_ids: list[str]; support_ids: list[str]; alternatives: list[str]; counterexamples: list[str] = []; status: ReviewStatus = ReviewStatus.PROVISIONAL; theory_reference_ids: list[str] = []
+    id: str; concept_ids: list[str]; support_ids: list[str]; alternatives: list[str]; counterexamples: list[str] = []; status: ReviewStatus = ReviewStatus.PROVISIONAL; theory_reference_ids: list[str] = []; discourse_type: str | None = None; desire_residual: DesireResidual | None = None; points_de_capiton: list[PointDeCapiton] = []; matheme_ids: list[str] = []; grounding_score: float = 0.0; fuzzy_groundings: list[dict[str, Any]] = []
 class GraphNode(BaseModel):
     id: str; type: str; label: str; source_ids: list[str] = []; status: str = 'provisional'
 class GraphEdge(BaseModel):
     id: str; source: str; target: str; type: str; evidence_span_ids: list[str]; weight: float | None = None
 class NarrativeOperator(BaseModel):
     id: str; operator: str; source_finding_ids: list[str]; allowed: bool = False; use_cases: list[str] = []; counterexamples: list[str] = []; approval_state: str = 'provisional'
+class PointDeCapiton(BaseModel):
+    id: str; signifier: str; fixation_span_ids: list[str] = []; duration: int = 0; centrality: float = 0.0
+class DesireResidual(BaseModel):
+    demand_surface: str; need_object: str | None = None; residual_score: float = 0.0
+
+    @model_validator(mode='after')
+    def _validate_residual_range(self):
+        if not (0.0 <= self.residual_score <= 1.0):
+            raise ValueError(f'residual_score must be in [0, 1], got {self.residual_score}')
+        return self
+class CulturalAnnotation(BaseModel):
+    id: str; span_id: str; entity_name: str; entity_type: str; confidence: float = 1.0; context_brief: str = ''; source: str = 'gazetteer'
+
+    @model_validator(mode='after')
+    def _validate_confidence(self):
+        if not (0.0 <= self.confidence <= 1.0):
+            raise ValueError(f'confidence must be in [0, 1], got {self.confidence}')
+        return self
 class AnalysisPacket(BaseModel):
     model_config = ConfigDict(use_enum_values=True)
-    run_id: str; participant_id: str; state: RunState; observations: list[Observation] = []; hypotheses: list[Hypothesis] = []; narrative_operators: list[NarrativeOperator] = []; errors: list[str] = []
+    run_id: str; participant_id: str; state: RunState; observations: list[Observation] = []; hypotheses: list[Hypothesis] = []; narrative_operators: list[NarrativeOperator] = []; errors: list[str] = []; cultural_annotations: list[CulturalAnnotation] = []; hallucination_reports: list[dict[str, Any]] = []
 class AnalysisRun(BaseModel):
-    id: str; project_id: str; participant_id: str; source_ids: list[str]; state: RunState; idempotency_key: str; packet: AnalysisPacket | None = None; audit: list[dict[str, Any]] = []
+    id: str; project_id: str; participant_id: str; source_ids: list[str]; state: RunState; idempotency_key: str; packet: AnalysisPacket | None = None; audit: list[dict[str, Any]] = []; topology: dict[str, Any] = {}
 class ReviewRequest(BaseModel):
     reviewer_id: str; decision: ReviewDecision; reason: str = ''
 class ErrorBody(BaseModel):
