@@ -76,7 +76,7 @@ def build_parser() -> argparse.ArgumentParser:
         description="Evidence-constrained Lacan-Agent research workflow (local Mock mode).",
         epilog="常用流程：init → add-participant → add-source → analyze → review → export；主体画像使用 subject build。",
     )
-    parser.add_argument("--version", action="version", version="lacan-agent 0.1.0")
+    parser.add_argument("--version", action="version", version="lacan-agent 1.0.0")
     parser.add_argument("--db", default=os.getenv("LACAN_DB_PATH", "./data/lacan.db"), help="SQLite path")
     parser.add_argument("--pretty", action="store_true", help="pretty-print JSON output")
     parser.add_argument("--output", help="write the command result to a JSON file")
@@ -148,6 +148,7 @@ def build_parser() -> argparse.ArgumentParser:
     sb.add_argument("--root", help="root directory containing source files")
     sb.add_argument("--cards-dir", default="data/subject-artifacts")
     sb.add_argument("--consent", help="JSON consent policy")
+    sb.add_argument("--mock", action="store_true", help="use the offline structural candidate provider")
     ss = subject_sub.add_parser("show", help="show a subject artifact")
     ss.add_argument("--participant", required=True)
     ss.add_argument("--cards-dir", default="data/subject-artifacts")

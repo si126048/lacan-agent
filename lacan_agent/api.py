@@ -10,7 +10,7 @@ from .models import *
 from .rag import ingest, search
 from .workflow import Workflow
 from .concurrent import ConcurrentAnalyzer, AnalysisTask
-app=FastAPI(title='Lacan-Agent',version='0.2.0')
+app=FastAPI(title='Lacan-Agent',version='1.0.0')
 store=Store(); flow=Workflow(store)
 class ProjectIn(BaseModel): id:str; owner_id:str='local-user'; policy_version:str='1.0'
 class ParticipantIn(BaseModel): id:str; project_id:str; pseudonym:str|None=None; consent_scope:ConsentScope=ConsentScope()
