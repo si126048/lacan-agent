@@ -22,6 +22,15 @@ EXIT_USAGE = 2
 EXIT_DOMAIN = 3
 
 
+def _configure_console() -> None:
+    """Keep Chinese output readable on Windows and redirected consoles."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
+
+
 class CliError(RuntimeError):
     """A user-facing error with a stable exit code."""
 
@@ -65,7 +74,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="lacan-agent",
         description="Evidence-constrained Lacan-Agent research workflow (local Mock mode).",
+        epilog="常用流程：init → add-participant → add-source → analyze → review → export；主体画像使用 subject build。",
     )
+    parser.add_argument("--version", action="version", version="lacan-agent 0.1.0")
     parser.add_argument("--db", default=os.getenv("LACAN_DB_PATH", "./data/lacan.db"), help="SQLite path")
     parser.add_argument("--pretty", action="store_true", help="pretty-print JSON output")
     parser.add_argument("--output", help="write the command result to a JSON file")
@@ -295,6 +306,7 @@ def execute(args: argparse.Namespace) -> Any:
 
 
 def main(argv: list[str] | None = None) -> int:
+    _configure_console()
     logging.basicConfig(level=os.environ.get('LACAN_LOG_LEVEL', 'WARNING'), format='%(levelname)s %(name)s: %(message)s')
     parser = build_parser()
     try:
@@ -314,4 +326,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

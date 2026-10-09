@@ -15,6 +15,8 @@ from .db import Store
 from .models import ConsentScope, Participant, ReviewDecision, ReviewRequest
 from .rag import ingest, search
 from .workflow import Workflow
+from .behavioral import SubjectProfiler
+from .behavioral.models import ProfileArtifact
 
 # ─── Color Palette ────────────────────────────────────────────────
 # Lacan's three registers + scholarly accents
@@ -235,10 +237,13 @@ def run_interactive(db_path: str) -> int:
         print(f"  {C.LN}────────────────────────────────────────────────────────────{C.R}")
         print()
         print(_menu_row("10", "撤回参与者", "Revocatio", C.WN))
+        print(_menu_row("11", "构建主体结构画像", "Structura Subjecti", C.IM))
+        print(_menu_row("12", "查看主体结构画像", "Inspectio Subjecti", C.IM))
+        print(_menu_row("13", "审核结构候选", "Recensio Structurae", C.WN))
         print(_menu_row(" 0", "退出", "Finis", C.D))
         print()
 
-        choice = input(f"  {C.RE}◊{C.R} {C.TX}选择{C.R} {C.D}[0-10]{C.R} {C.SY}›{C.R} ").strip()
+        choice = input(f"  {C.RE}◊{C.R} {C.TX}选择{C.R} {C.D}[0-13]{C.R} {C.SY}›{C.R} ").strip()
 
         try:
             if choice == "0":
@@ -365,8 +370,57 @@ def run_interactive(db_path: str) -> int:
                         raise ValueError(f"参与者不存在: {participant}")
                     print(f"  {C.WN}✓{C.R} {C.D}参与者 {C.TX}{participant}{C.D} 已进入撤回状态{C.R}")
 
+            elif choice == "11":
+                print(f"\n  {C.IM}●{C.R} {C.TX}构建主体结构画像{C.R}")
+                participant = _ask("参与者 ID")
+                sources = _ask("sources.json 路径")
+                root = _ask("材料根目录", str(Path(sources).resolve().parent))
+                cards_dir = _ask("画像输出目录", "./data/subject-artifacts")
+                artifact = SubjectProfiler(sources, root=root).build(participant)
+                out = Path(cards_dir) / f"{participant}.json"
+                out.parent.mkdir(parents=True, exist_ok=True)
+                out.write_text(artifact.model_dump_json(indent=2), encoding="utf-8")
+                print(f"  {C.OK}✓{C.R} {C.D}主体画像已生成：{C.TX}{out.resolve()}{C.R}")
+                _show({
+                    "participant": participant,
+                    "sources": len(artifact.source_manifest),
+                    "spans": artifact.quality.get("sample_size", 0),
+                    "candidate_claims": len(artifact.structural_claims),
+                    "review_state": artifact.review_state,
+                })
+
+            elif choice == "12":
+                print(f"\n  {C.IM}●{C.R} {C.TX}查看主体结构画像{C.R}")
+                participant = _ask("参与者 ID")
+                cards_dir = _ask("画像目录", "./data/subject-artifacts")
+                path = Path(cards_dir) / f"{participant}.json"
+                artifact = json.loads(path.read_text(encoding="utf-8"))
+                claims = artifact.get("structural_claims", [])
+                _show({
+                    "participant": artifact.get("participant_id"),
+                    "sources": artifact.get("source_profiles", {}),
+                    "claims": [{
+                        "id": c.get("claim_id"), "dimension": c.get("dimension"),
+                        "text": c.get("text"), "confidence": c.get("confidence"),
+                        "status": c.get("status"), "evidence": len(c.get("evidence_span_ids", [])),
+                    } for c in claims],
+                    "review_state": artifact.get("review_state"),
+                })
+
+            elif choice == "13":
+                print(f"\n  {C.WN}●{C.R} {C.TX}审核结构候选{C.R}")
+                participant = _ask("参与者 ID")
+                cards_dir = _ask("画像目录", "./data/subject-artifacts")
+                review_path = _ask("审核 JSON 路径")
+                path = Path(cards_dir) / f"{participant}.json"
+                artifact = ProfileArtifact.model_validate_json(path.read_text(encoding="utf-8"))
+                review = json.loads(Path(review_path).read_text(encoding="utf-8"))
+                artifact = SubjectProfiler.apply_review(artifact, review)
+                path.write_text(artifact.model_dump_json(indent=2), encoding="utf-8")
+                print(f"  {C.OK}✓{C.R} {C.D}审核已保存，状态：{C.TX}{artifact.review_state}{C.R}")
+
             else:
-                print(f"  {C.ER}✗{C.R} {C.D}请输入 0 到 10{C.R}")
+                print(f"  {C.ER}✗{C.R} {C.D}请输入 0 到 13{C.R}")
 
         except (OSError, ValueError, KeyError, PermissionError) as exc:
             print(f"\n  {C.ER}✗ 操作失败{C.R}  {C.D}{exc}{C.R}")
