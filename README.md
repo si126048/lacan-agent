@@ -122,6 +122,29 @@ export DASHSCOPE_API_KEY=sk-your-key
 lacan-agent analyze --project demo --participant A --source story.txt
 ```
 
+### 五人经验画像
+
+画像功能当前生成可追溯的 `ProfileArtifact` JSON，不实现故事接龙运行时。现有五人数据可以直接运行：
+
+```bash
+lacan-agent profile build --all --texts-dir data/participant_texts --cards-dir data/profile-cards
+lacan-agent profile show --participant 灯 --cards-dir data/profile-cards
+```
+
+也可以用配置文件替换固定五人：
+
+```json
+{"participants": [{"id": "friend_a", "file": "a.txt"}, {"id": "friend_b", "file": "b.txt"}]}
+```
+
+```bash
+lacan-agent profile build --all --config participants.json --texts-dir ./texts --cards-dir ./profiles
+```
+
+画像默认只写统计特征，不把完整原文写入 artifact。主题、事件、关系和候选特征由可选 Provider 生成时，必须引用输入消息 ID；未经授权或撤回的参与者不能生成画像。
+
+一次五人统计画像运行的结果与限制见 [五人经验画像阶段报告](docs/experience-profile-report.md)。
+
 ## 项目结构
 
 ```

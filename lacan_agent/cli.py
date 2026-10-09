@@ -104,6 +104,30 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("withdraw", help="withdraw a participant and block future analysis")
     p.add_argument("--participant", required=True); p.add_argument("--project", default="demo")
+
+    p = sub.add_parser("profile", help="generate versioned behavioral profile artifacts")
+    p.add_argument("--participant", help=argparse.SUPPRESS)
+    p.add_argument("--all", action="store_true", help=argparse.SUPPRESS)
+    p.add_argument("--prompt", action="store_true", help=argparse.SUPPRESS)
+    p.add_argument("--texts-dir", default="data/participant_texts", help=argparse.SUPPRESS)
+    profile_sub = p.add_subparsers(dest="profile_command")
+    pb = profile_sub.add_parser("build", help="build ProfileArtifact JSON")
+    pb.add_argument("--participant")
+    pb.add_argument("--all", action="store_true")
+    pb.add_argument("--texts-dir", default="data/participant_texts")
+    pb.add_argument("--config", help="JSON participant manifest")
+    pb.add_argument("--cards-dir", help="write one JSON artifact per participant")
+    pb.add_argument("--consent", help="JSON consent policy")
+    ps = profile_sub.add_parser("show", help="show one profile artifact")
+    ps.add_argument("--participant", required=True)
+    ps.add_argument("--cards-dir", default="data/profile-cards")
+    pe = profile_sub.add_parser("export", help="export one profile artifact")
+    pe.add_argument("--participant", required=True)
+    pe.add_argument("--texts-dir", default="data/participant_texts")
+    pe.add_argument("--output", required=True)
+    pd = profile_sub.add_parser("delete", help="delete one derived profile artifact")
+    pd.add_argument("--participant", required=True)
+    pd.add_argument("--cards-dir", default="data/profile-cards")
     return parser
 
 
@@ -164,6 +188,43 @@ def execute(args: argparse.Namespace) -> Any:
         if participant is None:
             raise CliError(f"participant not found: {args.participant}")
         return {"participant_id": args.participant, "state": "WITHDRAWAL_REQUESTED"}
+    if cmd == "profile":
+        from .behavioral import BehavioralProfiler
+        profile_cmd = getattr(args, 'profile_command', None) or 'build'
+        texts_dir = getattr(args, 'texts_dir', 'data/participant_texts')
+        manifest = None
+        if getattr(args, 'config', None):
+            from .behavioral.config import load_participant_manifest
+            manifest = load_participant_manifest(args.config)
+        consent = None
+        if getattr(args, 'consent', None):
+            consent = json.loads(Path(args.consent).read_text(encoding='utf-8'))
+        profiler = BehavioralProfiler(texts_dir, args.db, participants=manifest, consent=consent)
+        if profile_cmd == 'build':
+            names = list(profiler.participants) if getattr(args, 'all', False) else [getattr(args, 'participant', None)]
+            if not names or names == [None]:
+                raise CliError('specify --participant or --all', EXIT_USAGE)
+            artifacts = {name: profiler.build_artifact(name, provider=provider) for name in names if name}
+            cards_dir = getattr(args, 'cards_dir', None)
+            if cards_dir:
+                out_dir = Path(cards_dir); out_dir.mkdir(parents=True, exist_ok=True)
+                for name, artifact in artifacts.items():
+                    (out_dir / f'{name}.json').write_text(artifact.model_dump_json(indent=2), encoding='utf-8')
+                return {'status': 'ok', 'artifacts': len(artifacts), 'cards_dir': str(out_dir)}
+            return {name: artifact.model_dump(mode='json') for name, artifact in artifacts.items()}
+        if profile_cmd == 'show':
+            path = Path(args.cards_dir) / f'{args.participant}.json'
+            if not path.is_file():
+                raise CliError(f'profile artifact not found: {path}')
+            return json.loads(path.read_text(encoding='utf-8'))
+        if profile_cmd == 'export':
+            artifact = profiler.build_artifact(args.participant, provider=provider)
+            Path(args.output).parent.mkdir(parents=True, exist_ok=True)
+            Path(args.output).write_text(artifact.model_dump_json(indent=2), encoding='utf-8')
+            return {'status': 'ok', 'written': str(Path(args.output).resolve())}
+        if profile_cmd == 'delete':
+            return {'deleted': profiler.delete_artifact(args.participant, args.cards_dir)}
+        raise CliError(f'unknown profile command: {profile_cmd}', EXIT_USAGE)
     raise CliError(f"unknown command: {cmd}", EXIT_USAGE)
 
 
@@ -187,7 +248,5 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
-
 
 
