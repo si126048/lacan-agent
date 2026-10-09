@@ -128,6 +128,29 @@ def build_parser() -> argparse.ArgumentParser:
     pd = profile_sub.add_parser("delete", help="delete one derived profile artifact")
     pd.add_argument("--participant", required=True)
     pd.add_argument("--cards-dir", default="data/profile-cards")
+
+    p = sub.add_parser("subject", help="build multi-source subject structure artifacts")
+    subject_sub = p.add_subparsers(dest="subject_command", required=True)
+    sb = subject_sub.add_parser("build", help="build a subject artifact from a sources manifest")
+    sb.add_argument("--participant", required=True)
+    sb.add_argument("--sources", required=True, help="JSON material sources manifest")
+    sb.add_argument("--root", help="root directory containing source files")
+    sb.add_argument("--cards-dir", default="data/subject-artifacts")
+    sb.add_argument("--consent", help="JSON consent policy")
+    ss = subject_sub.add_parser("show", help="show a subject artifact")
+    ss.add_argument("--participant", required=True)
+    ss.add_argument("--cards-dir", default="data/subject-artifacts")
+    sr = subject_sub.add_parser("review", help="apply a JSON review file")
+    sr.add_argument("--participant", required=True)
+    sr.add_argument("--input", required=True)
+    sr.add_argument("--cards-dir", default="data/subject-artifacts")
+    se = subject_sub.add_parser("export", help="export a subject artifact")
+    se.add_argument("--participant", required=True)
+    se.add_argument("--cards-dir", default="data/subject-artifacts")
+    se.add_argument("--output", required=True)
+    sd = subject_sub.add_parser("delete", help="delete a derived subject artifact")
+    sd.add_argument("--participant", required=True)
+    sd.add_argument("--cards-dir", default="data/subject-artifacts")
     return parser
 
 
@@ -225,6 +248,49 @@ def execute(args: argparse.Namespace) -> Any:
         if profile_cmd == 'delete':
             return {'deleted': profiler.delete_artifact(args.participant, args.cards_dir)}
         raise CliError(f'unknown profile command: {profile_cmd}', EXIT_USAGE)
+    if cmd == "subject":
+        from .behavioral import SubjectProfiler, ConsentPolicy
+        subject_cmd = args.subject_command
+        cards_dir = Path(args.cards_dir)
+        artifact_path = cards_dir / f'{args.participant}.json'
+        if subject_cmd == 'build':
+            consent = None
+            if getattr(args, 'consent', None):
+                try:
+                    consent = json.loads(Path(args.consent).read_text(encoding='utf-8'))
+                except (OSError, json.JSONDecodeError) as exc:
+                    raise CliError(f'invalid consent file: {exc}') from exc
+            profiler = SubjectProfiler(args.sources, root=args.root, consent=consent)
+            artifact = profiler.build(args.participant, provider=provider)
+            cards_dir.mkdir(parents=True, exist_ok=True)
+            artifact_path.write_text(artifact.model_dump_json(indent=2), encoding='utf-8')
+            return {'status': 'ok', 'participant': args.participant, 'written': str(artifact_path.resolve()),
+                    'claims': len(artifact.structural_claims), 'spans': artifact.quality.get('sample_size', 0)}
+        if not artifact_path.is_file():
+            raise CliError(f'subject artifact not found: {artifact_path}')
+        from .behavioral.models import ProfileArtifact
+        try:
+            artifact = ProfileArtifact.model_validate_json(artifact_path.read_text(encoding='utf-8'))
+        except (OSError, ValueError) as exc:
+            raise CliError(f'invalid subject artifact: {exc}') from exc
+        if subject_cmd == 'show':
+            return artifact.model_dump(mode='json')
+        if subject_cmd == 'review':
+            try:
+                review = json.loads(Path(args.input).read_text(encoding='utf-8'))
+            except (OSError, json.JSONDecodeError) as exc:
+                raise CliError(f'invalid review file: {exc}') from exc
+            artifact = SubjectProfiler.apply_review(artifact, review)
+            artifact_path.write_text(artifact.model_dump_json(indent=2), encoding='utf-8')
+            return {'status': 'ok', 'review_state': artifact.review_state, 'written': str(artifact_path.resolve())}
+        if subject_cmd == 'export':
+            Path(args.output).parent.mkdir(parents=True, exist_ok=True)
+            Path(args.output).write_text(artifact.model_dump_json(indent=2), encoding='utf-8')
+            return {'status': 'ok', 'written': str(Path(args.output).resolve())}
+        if subject_cmd == 'delete':
+            artifact_path.unlink()
+            return {'deleted': 1, 'participant': args.participant}
+        raise CliError(f'unknown subject command: {subject_cmd}', EXIT_USAGE)
     raise CliError(f"unknown command: {cmd}", EXIT_USAGE)
 
 
@@ -248,5 +314,4 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
 

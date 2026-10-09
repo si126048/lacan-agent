@@ -145,6 +145,38 @@ lacan-agent profile build --all --config participants.json --texts-dir ./texts -
 
 画像 JSON 是本地派生产物，默认写入被 Git 忽略的 `data/` 目录，不随仓库发布。报告和原始画像数据不作为仓库文档维护；如需复核，应在本地重新运行 `profile build` 生成。
 
+### 多源主体结构画像
+
+主体结构画像将聊天、访谈、续写和写作样本作为独立来源处理，再生成带证据 span 的候选结构。访谈来源使用 JSON 文件，回答可以放在每个 turn 的 `answer_text` 字段中：
+
+```json
+{
+  "sources": [
+    {"source_id": "chat_a", "participant_id": "A", "source_type": "chat", "path": "a.txt"},
+    {"source_id": "interview_a", "participant_id": "A", "source_type": "interview", "path": "interview.json", "context": "research"}
+  ]
+}
+```
+
+```json
+{
+  "turns": [
+    {"question_id": "A2", "answer_text": "我通常先解释，再决定是否继续。", "tags": ["misrecognition"]}
+  ]
+}
+```
+
+构建、审核和导出命令：
+
+```bash
+lacan-agent subject build --participant A --sources sources.json --cards-dir data/subject-artifacts
+lacan-agent subject show --participant A --cards-dir data/subject-artifacts
+lacan-agent subject review --participant A --input review.json --cards-dir data/subject-artifacts
+lacan-agent subject export --participant A --cards-dir data/subject-artifacts --output subject.json
+```
+
+Qwen 只生成待审核的结构候选；只有 `approved` 候选会进入生成策略。当前版本仍不包含五人故事接龙运行时。主体画像和审核文件默认留在本地 `data/` 目录，不提交 GitHub。
+
 ## 项目结构
 
 ```

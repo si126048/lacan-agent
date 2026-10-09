@@ -3,10 +3,11 @@ from pathlib import Path
 
 import pytest
 
-from lacan_agent.behavioral import BehavioralProfiler, ConsentPolicy
+from lacan_agent.behavioral import BehavioralProfiler, ConsentPolicy, SubjectProfiler
 from lacan_agent.behavioral.chat_parser import load_participant_messages, load_normalized_messages
 from lacan_agent.behavioral.config import load_participant_manifest
 from lacan_agent.behavioral.inference import infer_claims
+from lacan_agent.behavioral.materials import load_materials
 
 
 def test_profile_artifact_has_manifest_and_no_raw_samples(tmp_path):
@@ -47,3 +48,46 @@ class FakeInference:
 def test_inference_rejects_unknown_evidence():
     with pytest.raises(ValueError, match='INVALID_PROFILE_EVIDENCE'):
         infer_claims(FakeInference(), [{'message_id': 'msg_ok', 'content': '你好'}])
+
+
+def test_interview_materials_generate_stable_spans(tmp_path):
+    interview = tmp_path / 'interview.json'
+    interview.write_text(json.dumps({'turns': [
+        {'question_id': 'A2', 'answer_text': '我通常先解释，再决定是否继续。', 'tags': ['misrecognition']},
+    ]}, ensure_ascii=False), encoding='utf-8')
+    manifest = tmp_path / 'sources.json'
+    manifest.write_text(json.dumps({'sources': [{
+        'source_id': 'interview_x', 'participant_id': 'p_x',
+        'source_type': 'interview', 'path': 'interview.json', 'context': 'research'
+    }]}), encoding='utf-8')
+    sources, spans = load_materials(manifest)
+    assert sources[0].source_type == 'interview'
+    assert spans[0].question_id == 'A2'
+    assert spans[0].span_id == load_materials(manifest)[1][0].span_id
+
+
+class FakeStructuralProvider:
+    def generate_structured(self, _system, payload, _model, _meta):
+        return {'claims': [{
+            'claim_id': 'claim_1', 'dimension': 'repeated_signifier',
+            'text': '存在反复出现的解释性表达',
+            'evidence_span_ids': [payload['allowed_span_ids'][0]],
+            'source_types': ['interview'], 'confidence': 0.8,
+            'alternatives': ['该表达可能只与本次访谈情境有关'],
+        }]}
+
+
+def test_subject_artifact_requires_evidence_and_review(tmp_path):
+    interview = tmp_path / 'interview.json'
+    interview.write_text(json.dumps({'turns': [{'question_id': 'A2', 'answer_text': '我先解释。'}]}, ensure_ascii=False), encoding='utf-8')
+    manifest = tmp_path / 'sources.json'
+    manifest.write_text(json.dumps({'sources': [{'source_id': 'i1', 'participant_id': 'p_x', 'source_type': 'interview', 'path': 'interview.json'}]}), encoding='utf-8')
+    profiler = SubjectProfiler(manifest)
+    artifact = profiler.build('p_x', provider=FakeStructuralProvider())
+    assert artifact.structural_claims[0].status == 'candidate'
+    assert artifact.generation_policy['subject_constraints'] == []
+    reviewed = SubjectProfiler.apply_review(artifact, {'participant_id': 'p_x', 'decisions': [
+        {'claim_id': 'claim_1', 'status': 'approved', 'reviewer_id': 'r1', 'reason': '复核通过'}
+    ]})
+    assert reviewed.review_state == 'approved'
+    assert reviewed.generation_policy['subject_constraints'] == ['claim_1']

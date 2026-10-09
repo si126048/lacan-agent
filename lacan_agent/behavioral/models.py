@@ -6,6 +6,15 @@ from datetime import datetime, timezone
 from pydantic import BaseModel, Field, field_validator
 
 
+SOURCE_TYPES = {'chat', 'interview', 'writing', 'observation'}
+STRUCTURAL_DIMENSIONS = {
+    'discourse_position', 'big_other', 'demand_desire', 'repeated_signifier',
+    'capiton_point', 'fantasy_structure', 'symptom_repetition', 'jouissance',
+    'four_discourse', 'rsi_relation', 'narrative_conflict',
+}
+CLAIM_STATUSES = {'candidate', 'approved', 'rejected', 'needs_revision'}
+
+
 class BehavioralProfile(BaseModel):
     """Behavioral style profile for one participant."""
 
@@ -92,6 +101,110 @@ class SourceManifest(BaseModel):
     format: str = 'plain'
 
 
+class MaterialSource(BaseModel):
+    """A consented input source used for multi-source subject analysis."""
+
+    source_id: str
+    participant_id: str
+    source_type: str
+    path: str
+    checksum: str
+    context: str | None = None
+    collected_at: str | None = None
+    consent_scope: dict = Field(default_factory=dict)
+    metadata: dict = Field(default_factory=dict)
+
+    @field_validator('source_type')
+    @classmethod
+    def valid_source_type(cls, value: str) -> str:
+        if value not in SOURCE_TYPES:
+            raise ValueError(f'INVALID_SOURCE_TYPE:{value}')
+        return value
+
+
+class EvidenceSpan(BaseModel):
+    span_id: str
+    source_id: str
+    participant_id: str
+    text: str
+    start_offset: int = 0
+    end_offset: int = 0
+    speaker: str | None = None
+    scene: str | None = None
+    timestamp: str | None = None
+    message_id: str | None = None
+    question_id: str | None = None
+    tags: list[str] = Field(default_factory=list)
+
+
+class StructuralClaim(BaseModel):
+    claim_id: str
+    dimension: str
+    text: str
+    evidence_span_ids: list[str] = Field(default_factory=list)
+    source_types: list[str] = Field(default_factory=list)
+    confidence: float = 0.0
+    alternatives: list[str] = Field(default_factory=list)
+    status: str = 'candidate'
+    source: str = 'qwen'
+    reviewer_id: str | None = None
+    review_reason: str | None = None
+    created_at: str | None = None
+
+    @field_validator('source_types')
+    @classmethod
+    def valid_source_types(cls, values: list[str]) -> list[str]:
+        invalid = set(values) - SOURCE_TYPES
+        if invalid:
+            raise ValueError(f'INVALID_SOURCE_TYPE:{sorted(invalid)[0]}')
+        return values
+
+    @field_validator('dimension')
+    @classmethod
+    def valid_dimension(cls, value: str) -> str:
+        if value not in STRUCTURAL_DIMENSIONS:
+            raise ValueError(f'INVALID_STRUCTURAL_DIMENSION:{value}')
+        return value
+
+    @field_validator('status')
+    @classmethod
+    def valid_status(cls, value: str) -> str:
+        if value not in CLAIM_STATUSES:
+            raise ValueError(f'INVALID_CLAIM_STATUS:{value}')
+        return value
+
+    @field_validator('confidence')
+    @classmethod
+    def valid_structural_confidence(cls, value: float) -> float:
+        if not 0.0 <= value <= 1.0:
+            raise ValueError('confidence must be in [0, 1]')
+        return value
+
+
+class CrossSourceFinding(BaseModel):
+    finding_id: str
+    type: str
+    claim_ids: list[str] = Field(default_factory=list)
+    evidence_span_ids: list[str] = Field(default_factory=list)
+    text: str
+    confidence: float = 0.0
+    status: str = 'candidate'
+
+    @field_validator('type')
+    @classmethod
+    def valid_finding_type(cls, value: str) -> str:
+        if value not in {'consistent', 'context_shift', 'contradiction', 'insufficient_evidence'}:
+            raise ValueError(f'INVALID_CROSS_SOURCE_TYPE:{value}')
+        return value
+
+    @field_validator('confidence')
+    @classmethod
+    def valid_finding_confidence(cls, value: float) -> float:
+        if not 0.0 <= value <= 1.0:
+            raise ValueError('confidence must be in [0, 1]')
+        return value
+
+
 class EvidenceClaim(BaseModel):
     id: str
     text: str
@@ -118,9 +231,13 @@ class ProfileArtifact(BaseModel):
     source_manifest: list[SourceManifest] = Field(default_factory=list)
     consent: ConsentPolicy
     observed_style: dict = Field(default_factory=dict)
+    source_profiles: dict[str, dict] = Field(default_factory=dict)
+    structural_claims: list[StructuralClaim] = Field(default_factory=list)
+    cross_source_findings: list[CrossSourceFinding] = Field(default_factory=list)
     topics: list[EvidenceClaim] = Field(default_factory=list)
     episodes: list[EvidenceClaim] = Field(default_factory=list)
     relationships: list[EvidenceClaim] = Field(default_factory=list)
     inferred_traits: list[EvidenceClaim] = Field(default_factory=list)
     generation_policy: dict = Field(default_factory=dict)
     quality: dict = Field(default_factory=dict)
+    review_state: str = 'candidate'
