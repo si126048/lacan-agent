@@ -143,7 +143,7 @@ lacan-agent profile build --all --config participants.json --texts-dir ./texts -
 
 画像默认只写统计特征，不把完整原文写入 artifact。主题、事件、关系和候选特征由可选 Provider 生成时，必须引用输入消息 ID；未经授权或撤回的参与者不能生成画像。
 
-一次五人统计画像运行的结果与限制见 [五人经验画像阶段报告](docs/experience-profile-report.md)。
+画像 JSON 是本地派生产物，默认写入被 Git 忽略的 `data/` 目录，不随仓库发布。报告和原始画像数据不作为仓库文档维护；如需复核，应在本地重新运行 `profile build` 生成。
 
 ## 项目结构
 
