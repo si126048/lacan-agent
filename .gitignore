@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+.env
+data/
+.api/
+.e2e/
+.test-tmp/
+output/
+tmp/
+*.sqlite
+*.db
+!.pytest_cache/.gitkeep
