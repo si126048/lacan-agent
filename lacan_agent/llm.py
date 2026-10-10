@@ -32,6 +32,22 @@ class FakeProvider:
                 'confidence': 0.5,
                 'alternatives': ['可能由当前场景或文本格式造成'],
             }]}
+        if stage == 'dialectical_evidence':
+            perspective_id = run_context.get('perspective_id', 'lacan')
+            reg = 'M' if perspective_id == 'deleuze' else 'S'
+            label = '装配连接模式' if perspective_id == 'deleuze' else '文本中出现可复核的重复措辞或意象'
+            return {'observations': [{'id': f'{perspective_id}_obs_1', 'label': label, 'evidence_span_ids': user_payload.get('span_ids', [])[:1], 'register': reg, 'register_markers': ['连接', '装配'] if perspective_id == 'deleuze' else ['重复', '结构']}]}
+        if stage == 'dialectical_interpreter':
+            perspective_id = run_context.get('perspective_id', 'lacan')
+            if perspective_id == 'deleuze':
+                return {'hypotheses': [{'id': f'{perspective_id}_hyp_1', 'concept_ids': ['assemblage'], 'support_ids': user_payload.get('observation_ids', []), 'alternatives': ['装配可能由外部制度驱动'], 'counterexamples': ['样本规模有限'], 'status': 'provisional', 'theory_reference_ids': [], 'discourse_type': None, 'matheme_ids': [], 'points_de_capiton': [], 'desire_residual': None}]}
+            return {'hypotheses': [{'id': f'{perspective_id}_hyp_1', 'concept_ids': ['repetition'], 'support_ids': user_payload.get('observation_ids', []), 'alternatives': ['体裁惯例或主题回环'], 'counterexamples': ['当前样本过短'], 'status': 'provisional', 'theory_reference_ids': [], 'discourse_type': 'master', 'matheme_ids': ['m_s'], 'points_de_capiton': [], 'desire_residual': {'demand_surface': '重复表达的诉求', 'need_object': None, 'residual_score': 0.6}}]}
+        if stage == 'cross_critique':
+            return {'counterexamples': [{'id': 'cc_1', 'text': '交叉批评反例候选', 'evidence_span_ids': [], 'disconfirmation_score': 0.3, 'source': 'cross_critique'}], 'blind_spot_alerts': ['目标视角可能忽视了其框架外的现象'], 'epistemic_gaps': ['两种视角的认识论预设存在不可通约性']}
+        if stage == 'dialectical_synthesis':
+            return {'convergence': [{'finding': '两个视角均观察到重复模式', 'perspectives': user_payload.get('perspective_ids', []), 'evidence': '重复出现的关键措辞'}], 'divergence': [{'topic': '重复的本质', 'positions': [{'perspective': 'lacan', 'position': '强迫性重复'}, {'perspective': 'deleuze', 'position': '差异的生产'}], 'productive_tension': '同一现象被解读为结构约束或生产性差异'}], 'unique_insights': [], 'meta_critique': ['双视角分析揭示了单一框架的盲区'], 'recommended_hypotheses': []}
+        if stage == 'dialectical_report':
+            return {'report': '# 辩证分析报告\n\n## 概述\n\n基于多视角分析的综合报告。\n\n## 发现\n\n各视角收敛与分歧的综合呈现。'}
         raise ValueError(f"UNKNOWN_STAGE: {stage}")
 
 EVIDENCE_SYSTEM = textwrap.dedent("""\
@@ -94,6 +110,52 @@ CRITIC_SYSTEM = textwrap.dedent("""\
     6. 标记可能的幻觉论断（ungrounded_claims）：假设中无法追溯到具体证据文本的论断
 
     返回 JSON：{"counterexamples_by_hypothesis": {"hyp_1": ["反例1", ...], "hyp_2": [...]}, "gaps": ["缺口1", ...], "fuzzy_disconfirmation_by_hypothesis": {"hyp_1": 0.7, "hyp_2": 0.3}, "grounding_assessment_by_hypothesis": {"hyp_1": "strong", "hyp_2": "weak"}, "ungrounded_claims_by_hypothesis": {"hyp_1": ["无法追溯的论断1"], "hyp_2": []}}""")
+
+CROSS_CRITIQUE_SYSTEM = textwrap.dedent("""\
+    你是一位跨理论视角的批评者。你的任务是从自己的理论立场出发，批评另一个视角的分析结果。
+
+    批评原则：
+    1. 从你自己的概念框架出发，指出对方分析中你所能看到的盲点
+    2. 提出对方视角无法捕捉的现象或模式
+    3. 指出对方假设中隐含的、你的框架认为有问题的预设
+    4. 不要试图"翻译"对方的概念到你的框架——保持批评的外在性
+
+    返回 JSON：{
+      "counterexamples": [{"id": "cc_N", "text": "反例描述", "evidence_span_ids": [...], "disconfirmation_score": 0.0-1.0, "source": "cross_critique"}],
+      "blind_spot_alerts": ["盲区警告1", ...],
+      "epistemic_gaps": ["认识论缺口1", ...]
+    }""")
+
+SYNTHESIS_SYSTEM = textwrap.dedent("""\
+    你是一位多元理论视角的综合者。你收到了来自不同理论视角对同一文本的独立分析以及它们之间的交叉批评。
+
+    你的任务不是选择一个"正确"的视角，而是：
+    1. 识别各视角的收敛点（convergence）：不同框架都观察到的模式
+    2. 标注生产性分歧（divergence）：不是谁对谁错，而是不同框架揭示了不同的东西
+    3. 保留独特洞见（unique_insights）：某个视角单独发现的重要模式
+    4. 提出元批评（meta_critique）：对整体分析过程的方法论反思
+    5. 推荐假设（recommended_hypotheses）：跨视角支持最强的假设 ID
+
+    返回 JSON：{
+      "convergence": [{"finding": "...", "perspectives": ["lacan", "deleuze"], "evidence": "..."}],
+      "divergence": [{"topic": "...", "positions": [{"perspective": "...", "position": "..."}], "productive_tension": "..."}],
+      "unique_insights": [{"perspective": "...", "insight": "...", "significance": "..."}],
+      "meta_critique": ["方法论反思1", ...],
+      "recommended_hypotheses": ["hyp_1", ...]
+    }""")
+
+DIALECTICAL_REPORT_SYSTEM = textwrap.dedent("""\
+    你是一位学术报告撰写者。基于多元视角分析结果、交叉批评和综合报告，撰写一份完整的辩证分析报告。
+
+    报告结构：
+    1. 概述：分析对象、使用的理论视角、主要发现
+    2. 各视角分析摘要
+    3. 交叉批评要点
+    4. 综合发现：收敛、分歧、独特洞见
+    5. 方法论反思
+    6. 结论与建议
+
+    使用中文撰写，保持学术严谨但可读。返回 JSON：{"report": "完整报告文本"}""")
 
 
 class QwenProvider:
@@ -184,4 +246,37 @@ class QwenProvider:
             hypotheses_summary = user_payload.get('hypotheses_summary', [])
             user_content = f"观察结果：\n{json.dumps(obs_labels, ensure_ascii=False, indent=2)}\n\n假设：\n{json.dumps(hypotheses_summary, ensure_ascii=False, indent=2)}\n\n请提出反例、模糊否定强度和幻觉风险，返回 JSON。"
             return self._call(CRITIC_SYSTEM, user_content)
+        elif stage == 'dialectical_evidence':
+            from .perspectives.prompts import build_perspective_prompts
+            from .models import PerspectiveConfig
+            perspective_config = run_context.get('perspective_config')
+            if perspective_config and isinstance(perspective_config, dict):
+                perspective_config = PerspectiveConfig.model_validate(perspective_config)
+            system = build_perspective_prompts(perspective_config, 'evidence') if perspective_config else EVIDENCE_SYSTEM
+            user_content = f"以下是文本片段（span_id 标注在每段开头）：\n\n{user_payload.get('spans_text', '')}\n\n请从指定视角分析，返回 JSON。可用的 span_ids: {json.dumps(user_payload.get('span_ids', []))}"
+            return self._call(system, user_content)
+        elif stage == 'dialectical_interpreter':
+            from .perspectives.prompts import build_perspective_prompts
+            from .models import PerspectiveConfig
+            perspective_config = run_context.get('perspective_config')
+            if perspective_config and isinstance(perspective_config, dict):
+                perspective_config = PerspectiveConfig.model_validate(perspective_config)
+            system = build_perspective_prompts(perspective_config, 'interpreter') if perspective_config else INTERPRETER_SYSTEM
+            user_content = f"观察结果：\n{json.dumps(user_payload.get('observation_labels', []), ensure_ascii=False, indent=2)}\n\n请从指定视角构建假设，返回 JSON。"
+            return self._call(system, user_content)
+        elif stage == 'cross_critique':
+            from .perspectives.prompts import build_perspective_prompts
+            from .models import PerspectiveConfig
+            perspective_config = run_context.get('perspective_config')
+            if perspective_config and isinstance(perspective_config, dict):
+                perspective_config = PerspectiveConfig.model_validate(perspective_config)
+            system = build_perspective_prompts(perspective_config, 'critic') if perspective_config else CROSS_CRITIQUE_SYSTEM
+            user_content = f"你需要批评以下分析结果：\n{json.dumps(user_payload.get('target_analysis', {}), ensure_ascii=False, indent=2)}\n\n请从你的视角提出批评，返回 JSON。"
+            return self._call(system, user_content)
+        elif stage == 'dialectical_synthesis':
+            user_content = f"各视角分析结果：\n{json.dumps(user_payload.get('analyses', {}), ensure_ascii=False, indent=2)}\n\n交叉批评：\n{json.dumps(user_payload.get('cross_critiques', {}), ensure_ascii=False, indent=2)}\n\n请综合以上结果，返回 JSON。"
+            return self._call(SYNTHESIS_SYSTEM, user_content)
+        elif stage == 'dialectical_report':
+            user_content = f"综合分析结果：\n{json.dumps(user_payload.get('synthesis', {}), ensure_ascii=False, indent=2)}\n\n请撰写完整的辩证分析报告，返回 JSON。"
+            return self._call(DIALECTICAL_REPORT_SYSTEM, user_content)
         raise ValueError(f"UNKNOWN_STAGE: {stage}")

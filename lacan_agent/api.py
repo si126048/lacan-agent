@@ -134,3 +134,31 @@ async def batch_analysis(x:BatchIn):
     atasks=[AnalysisTask(project_id=t.project_id,participant_id=t.participant_id,source_ids=t.source_ids,idempotency_key=t.idempotency_key) for t in x.tasks]
     results=await analyzer.analyze_batch(atasks)
     return {'results':[{'participant_id':r.task.participant_id,'run_id':r.run.id if r.run else None,'state':r.run.state if r.run else None,'error':r.error} for r in results]}
+
+def _get_provider():
+    if os.getenv('LACAN_MOCK'):
+        from .llm import FakeProvider
+        return FakeProvider()
+    from .llm import QwenProvider
+    return QwenProvider()
+
+class DialecticalRunIn(BaseModel):
+    project_id: str; participant_id: str; source_ids: list[str]
+    perspective_ids: list[str]; idempotency_key: str; generate_report: bool = False
+@app.post('/api/v1/dialectical/run', status_code=202, dependencies=[Depends(verify_api_key)])
+def dialectical_run(x: DialecticalRunIn):
+    from .perspectives import PerspectiveRegistry
+    from .dialectical import DialecticalWorkflow
+    registry = PerspectiveRegistry()
+    perspectives = registry.load_many(x.perspective_ids)
+    provider = _get_provider()
+    dw = DialecticalWorkflow(store, provider, perspectives)
+    result = dw.run(x.project_id, x.participant_id, x.source_ids, x.idempotency_key,
+                    generate_report=x.generate_report)
+    return result.model_dump(mode='json')
+
+@app.get('/api/v1/perspectives', dependencies=[Depends(verify_api_key)])
+def list_perspectives_api():
+    from .perspectives import list_perspectives
+    return {'perspectives': [{'id': p.id, 'name': p.name, 'concepts': p.concept_inventory,
+                              'blind_spots': p.blind_spots} for p in list_perspectives()]}

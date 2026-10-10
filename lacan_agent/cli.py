@@ -116,6 +116,28 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("withdraw", help="withdraw a participant and block future analysis")
     p.add_argument("--participant", required=True); p.add_argument("--project", default="demo")
 
+    p = sub.add_parser("dialectical-analyze", help="run multi-perspective dialectical analysis")
+    p.add_argument("--perspectives", required=True, help="comma-separated perspective IDs (e.g. lacan,deleuze)")
+    p.add_argument("--participant", required=True); p.add_argument("--project", default="demo")
+    p.add_argument("--source", required=True)
+    p.add_argument("--idempotency-key", default="dialectical-run")
+    p.add_argument("--report", action="store_true", help="generate Phase 4 comprehensive report")
+    p.add_argument("--mock", action="store_true", help="use the built-in provider")
+
+    p = sub.add_parser("doc-ingest", help="ingest a document into the PageIndex store")
+    p.add_argument("--path", required=True); p.add_argument("--title", default=None)
+
+    p = sub.add_parser("doc-search", help="search indexed documents")
+    p.add_argument("query"); p.add_argument("--doc-id", default=None); p.add_argument("--limit", type=int, default=10)
+
+    p = sub.add_parser("doc-outline", help="show document outline")
+    p.add_argument("--doc-id", required=True)
+
+    p = sub.add_parser("doc-verify", help="verify a quotation against source document")
+    p.add_argument("--doc-id", required=True); p.add_argument("--quote", required=True); p.add_argument("--page", type=int, default=None)
+
+    p = sub.add_parser("perspectives", help="list available theoretical perspectives")
+
     p = sub.add_parser("profile", help="generate versioned behavioral profile artifacts")
     p.add_argument("--participant", help=argparse.SUPPRESS)
     p.add_argument("--all", action="store_true", help=argparse.SUPPRESS)
@@ -233,6 +255,49 @@ def execute(args: argparse.Namespace) -> Any:
         if participant is None:
             raise CliError(f"participant not found: {args.participant}")
         return {"participant_id": args.participant, "state": "WITHDRAWAL_REQUESTED"}
+    if cmd == "dialectical-analyze":
+        from .perspectives import PerspectiveRegistry
+        from .dialectical import DialecticalWorkflow
+        participant = store.get_participant(args.project, args.participant)
+        if participant is None:
+            raise CliError(f"participant not found: {args.participant}")
+        document = _source_for(store, args.project, args.participant, args.source)
+        registry = PerspectiveRegistry()
+        perspective_ids = [p.strip() for p in args.perspectives.split(',')]
+        perspectives = registry.load_many(perspective_ids)
+        dw = DialecticalWorkflow(store, provider, perspectives)
+        result = dw.run(args.project, args.participant, [document.id], args.idempotency_key,
+                        generate_report=args.report)
+        return result.model_dump(mode='json')
+    if cmd == "doc-ingest":
+        from .documents import DocumentStore
+        doc_store = DocumentStore(store.conn)
+        doc_id, page_count = doc_store.ingest(args.path, title=args.title)
+        return {"doc_id": doc_id, "page_count": page_count, "status": "indexed"}
+    if cmd == "doc-search":
+        from .documents import DocumentStore
+        doc_store = DocumentStore(store.conn)
+        results = doc_store.search(args.query, doc_id=args.doc_id, limit=args.limit)
+        return {"items": results}
+    if cmd == "doc-outline":
+        from .documents import DocumentStore
+        doc_store = DocumentStore(store.conn)
+        doc = doc_store.get_document(args.doc_id)
+        if doc is None:
+            raise CliError(f"document not found: {args.doc_id}")
+        return {"doc_id": args.doc_id, "title": doc['title'], "outline": doc.get('outline')}
+    if cmd == "doc-verify":
+        from .documents import DocumentStore
+        from .documents.quote_verify import verify_quote
+        doc_store = DocumentStore(store.conn)
+        pages = doc_store.get_all_pages(args.doc_id)
+        if not pages:
+            raise CliError(f"document not found or empty: {args.doc_id}")
+        result = verify_quote(pages, args.quote, args.page)
+        return {"doc_id": args.doc_id, "result": result}
+    if cmd == "perspectives":
+        from .perspectives import list_perspectives
+        return {"perspectives": [{"id": p.id, "name": p.name, "concepts": len(p.concept_inventory)} for p in list_perspectives()]}
     if cmd == "profile":
         from .behavioral import BehavioralProfiler
         profile_cmd = getattr(args, 'profile_command', None) or 'build'

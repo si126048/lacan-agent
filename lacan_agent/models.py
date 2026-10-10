@@ -125,3 +125,47 @@ class ErrorBody(BaseModel):
     code: str; message: str; request_id: str
 class ErrorResponse(BaseModel):
     error: ErrorBody
+
+class PerspectiveConfig(BaseModel):
+    id: str
+    name: str
+    concept_inventory: list[str] = []
+    blind_spots: list[str] = []
+    vocabulary: dict[str, str] = {}
+    evidence_prompt_variant: str | None = None
+    interpreter_prompt_variant: str | None = None
+    critique_prompt_variant: str | None = None
+class PerspectiveAnalysis(BaseModel):
+    perspective_id: str
+    observations: list[Observation] = []
+    hypotheses: list[Hypothesis] = []
+    grounding_summary: dict[str, Any] = {}
+class CrossCritique(BaseModel):
+    source_perspective_id: str
+    target_perspective_id: str
+    counterexamples: list[Counterexample] = []
+    blind_spot_alerts: list[str] = []
+    epistemic_gaps: list[str] = []
+    page_references: list[dict[str, Any]] = []
+class SynthesisReport(BaseModel):
+    convergence: list[dict[str, Any]] = []
+    divergence: list[dict[str, Any]] = []
+    unique_insights: list[dict[str, Any]] = []
+    meta_critique: list[str] = []
+    recommended_hypotheses: list[str] = []
+class DialecticalResult(BaseModel):
+    run_id: str
+    perspective_ids: list[str]
+    phase1_analyses: list[PerspectiveAnalysis] = []
+    phase2_cross_critiques: list[CrossCritique] = []
+    phase3_synthesis: SynthesisReport | None = None
+    phase4_report: str | None = None
+class PageEvidenceSpan(BaseModel):
+    id: str
+    doc_id: str
+    page_number: int
+    char_start: int = 0
+    char_end: int = 0
+    excerpt: str = ''
+    excerpt_hash: str = ''
+    outline_path: list[str] = []
