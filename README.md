@@ -2,7 +2,7 @@
 
 **对抗性多视角话语分析工具** — 形式化记号驱动的多理论视角辩证分析，产出可追溯的证据化主体结构画像。
 
-> v2.2 · Python 3.12+ · 267 tests · MIT
+> v2.2 · Python 3.12+ · 277 tests · MIT
 
 ---
 
@@ -287,6 +287,38 @@ python -m hermeneut.acp --mock
 | "辩证分析：..." | 拉康 vs 德勒兹对抗性分析 |
 | "搜索：能指" | 文档全文检索 |
 
+### MCP（Model Context Protocol）
+
+Hermeneut 也可作为 MCP 服务器运行，供 Qoder、Claude Desktop 等 MCP 客户端直接调用。
+
+```bash
+hermeneut-mcp --mock          # 无需 API key
+hermeneut-mcp                 # 需要 DASHSCOPE_API_KEY
+python -m hermeneut.mcp_server --mock
+```
+
+暴露 4 个 MCP 工具：
+
+| 工具 | 说明 |
+|------|------|
+| `hermeneut_analyze` | 单视角证据分析 |
+| `hermeneut_dialectical` | 多视角辩证分析（拉康 vs 德勒兹） |
+| `hermeneut_perspectives` | 列出可用理论视角 |
+| `hermeneut_search` | 文档全文检索 |
+
+MCP 客户端配置示例（Qoder / Claude Desktop）：
+
+```json
+{
+  "mcpServers": {
+    "hermeneut": {
+      "command": "python",
+      "args": ["-m", "hermeneut.mcp_server", "--mock"]
+    }
+  }
+}
+```
+
 ---
 
 ## 隐私与伦理
@@ -304,7 +336,7 @@ python -m hermeneut.acp --mock
 ## 开发
 
 ```bash
-pytest tests/ -q          # 运行全部测试 (267)
+pytest tests/ -q          # 运行全部测试 (277)
 ruff check hermeneut/     # 代码检查
 ```
 
