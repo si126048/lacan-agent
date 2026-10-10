@@ -8,9 +8,9 @@
 
 | | |
 |---|---|
-| **版本** | 1.0 |
+| **版本** | 2.0 |
 | **Python** | 3.12+ |
-| **测试** | 176 passed |
+| **测试** | 230 passed |
 | **许可** | MIT |
 
 </div>
@@ -19,7 +19,7 @@
 
 ## 概述
 
-Lacan-Agent 是一个本地研究工具，用于把聊天、访谈、写作样本和研究观察整理成可追溯的主体结构画像。
+Lacan-Agent 是一个本地研究工具，用于把聊天、访谈、写作样本和研究观察整理成可追溯的主体结构画像。v2.0 新增对抗性多视角分析（拉康 vs 德勒兹）和 PageIndex 文档系统，支持长篇精神分析文本的处理与引文验证。
 
 项目关注的是证据化的经验分析，不是临床诊断，也不会把语言口癖直接等同于人格。每个结构候选都必须引用材料中的证据 span，默认状态为 `candidate`，只有人工审核通过后才能进入生成策略。
 
@@ -31,12 +31,14 @@ Lacan-Agent 是一个本地研究工具，用于把聊天、访谈、写作样�
 01  功能特性
 02  安装
 03  快速开始
-04  API 服务
-05  隐私与授权
-06  测试
-07  技术栈
-08  当前边界
-09  License
+04  对抗性多视角分析
+05  文档系统
+06  API 服务
+07  隐私与授权
+08  测试
+09  技术栈
+10  当前边界
+11  License
 ```
 
 ---
@@ -57,6 +59,19 @@ Lacan-Agent 是一个本地研究工具，用于把聊天、访谈、写作样�
 | **人工审核** | CLI 和 JSON 审核文件驱动的人工审核流程 |
 | **同意管理** | 参与者同意、过期、撤回和派生数据清理 |
 | **拓扑导出** | 旧版分析流水线的证据校验、文化注释、模糊接地和拓扑导出 |
+
+### 2.0 新增功能
+
+| 功能 | 描述 |
+|------|------|
+| **对抗性多视角分析** | 多个理论视角独立分析同一文本后交叉批评，产出更稳健的结果 |
+| **拉康 vs 德勒兹** | 内置两个对抗视角：拉康（能指/匮乏/结构）与德勒兹（装配/生成/机器） |
+| **四阶段辩证管线** | 独立分析 → 交叉批评 → 综合 → 可选报告生成 |
+| **可扩展视角注册** | 放置新 JSON 配置到 `perspectives/` 目录即可自动发现（福柯、德里达等） |
+| **PageIndex 文档存储** | 内容寻址（SHA-256 doc_id）、SQLite + FTS5 全文检索 |
+| **层级大纲检测** | 自动识别 BOOK/CHAPTER/SECTION 结构（英/法/德/西/意多语言） |
+| **引文验证** | NFKC 归一化 + 空白折叠，跨版本/OCR 引文匹配 |
+| **多格式文档提取** | txt/md、pdf（pypdf）、html、epub、office（可选） |
 
 ---
 
@@ -187,7 +202,109 @@ lacan-agent subject export --participant A --cards-dir data/subject-artifacts --
 
 ---
 
-## 04 API 服务
+## 04 对抗性多视角分析
+
+v2.0 引入 MISAKA-Agent 式的对抗结构：多个理论视角对同一文本进行独立分析，然后交叉批评，产出更稳健的分析结果。
+
+### 哲学对抗轴
+
+| 维度 | 拉康 | 德勒兹 |
+|------|------|--------|
+| 本体论 | 匮乏/缺失驱动主体 | 充盈/生产驱动机器 |
+| 语言 | 能指链优先，无意识像语言一样结构 | 语用学优先，语言是欲望机器的装配 |
+| 结构 | 三角结构（想象/象征/实在） | 多元体/根茎（去中心化网络） |
+| 欲望 | 欲望 = 对他者的欲望 | 欲望 = 生产性机器 |
+| 重复 | 强迫性重复，回返被压抑者 | 差异的重复，每次都是新的生产 |
+| 方法 | 解读症状背后的能指逻辑 | 绘制装配的连接与断裂 |
+
+### 四阶段流程
+
+```
+Phase 1 — 独立分析    每个视角独立跑 observe + interpret
+Phase 2 — 交叉批评    N 个视角 round-robin 配对（i 批评 i+1）
+Phase 3 — 综合        接收全部 Phase 1+2 结果，产出综合报告
+Phase 4 — 报告        可选：生成自然语言综合报告
+```
+
+### CLI 使用
+
+```bash
+# 列出可用视角
+lacan-agent perspectives
+
+# 拉康-德勒兹对抗分析
+lacan-agent dialectical-analyze \
+  --perspectives lacan,deleuze \
+  --participant A --project demo --source story.txt --mock
+
+# 生成综合报告
+lacan-agent dialectical-analyze \
+  --perspectives lacan,deleuze \
+  --participant A --project demo --source story.txt --mock --report
+```
+
+### 扩展新视角
+
+在 `lacan_agent/perspectives/` 目录下放置新的 JSON 配置文件即可自动注册：
+
+```json
+{
+  "id": "foucault",
+  "name": "Foucauldian Power/Knowledge",
+  "concept_inventory": ["power_knowledge", "disciplinary_power", "governmentality", "biopower"],
+  "blind_spots": ["tends to reduce subjective experience to power effects"],
+  "vocabulary": {
+    "dispositif": "异质元素的异质集合——话语、制度、建筑、命题构成的网络"
+  },
+  "evidence_prompt_variant": null,
+  "interpreter_prompt_variant": null,
+  "critique_prompt_variant": null
+}
+```
+
+---
+
+## 05 文档系统
+
+PageIndex 文档系统（移植自 MISAKA-Agent）支持长篇精神分析文本的处理。
+
+### 文档导入
+
+```bash
+# 导入文档（自动检测格式、提取页面、检测大纲）
+lacan-agent doc-ingest --path book.pdf --project demo
+lacan-agent doc-ingest --path seminar.txt --project demo --title "研讨班 XI"
+
+# 支持格式：txt, md, pdf, html, epub, docx, xlsx, pptx
+```
+
+### 文档查询
+
+```bash
+# 查看文档大纲
+lacan-agent doc-outline --doc-id abc123def456
+
+# 全文检索
+lacan-agent doc-search --query "objet petit a" --project demo
+lacan-agent doc-search --query "能指链" --doc-id abc123def456
+
+# 验证引文
+lacan-agent doc-verify --doc-id abc123def456 --quote "欲望是他者的欲望" --page 47
+```
+
+### 存储架构
+
+| 组件 | 说明 |
+|------|------|
+| **内容寻址** | SHA-256 前 12 位作为 doc_id，相同文档自动去重 |
+| **页级存储** | 每页文本独立存储，支持页级导航和检索 |
+| **FTS5 全文索引** | SQLite FTS5 虚拟表，支持中文分词检索 |
+| **大纲检测** | 自动识别 CHAPTER/BOOK/SECTION 等层级结构 |
+| **引文归一化** | NFKC  Unicode 归一化 + 连字符/软连字符/空白折叠 |
+
+---
+
+## 06 API 服务
 
 ### 启动服务
 
@@ -323,6 +440,27 @@ curl http://localhost:8000/api/v1/analysis-runs/run_001/packet > result.json
 curl http://localhost:8000/api/v1/analysis-runs/run_001/graph > graph.json
 ```
 
+**多视角辩证分析**：
+
+```bash
+curl -X POST http://localhost:8000/api/v1/dialectical/run \
+  -H "Content-Type: application/json" \
+  -d '{
+    "project_id": "demo",
+    "participant_id": "A",
+    "source_ids": ["source_1"],
+    "perspective_ids": ["lacan", "deleuze"],
+    "idempotency_key": "dial_001",
+    "generate_report": true
+  }'
+```
+
+**列出可用视角**：
+
+```bash
+curl http://localhost:8000/api/v1/perspectives
+```
+
 ### 主要端点
 
 | 方法 | 端点 | 描述 |
@@ -336,10 +474,12 @@ curl http://localhost:8000/api/v1/analysis-runs/run_001/graph > graph.json
 | `GET` | `/api/v1/analysis-runs/{rid}/packet` | 导出审核包 |
 | `GET` | `/api/v1/analysis-runs/{rid}/graph` | 导出图谱 |
 | `POST` | `/api/v1/participants/{pid}/withdraw` | 撤回参与者 |
+| `POST` | `/api/v1/dialectical/run` | 运行多视角辩证分析 |
+| `GET` | `/api/v1/perspectives` | 列出可用理论视角 |
 
 ---
 
-## 05 隐私与授权
+## 07 隐私与授权
 
 | 原则 | 说明 |
 |------|------|
@@ -352,17 +492,17 @@ curl http://localhost:8000/api/v1/analysis-runs/run_001/graph > graph.json
 
 ---
 
-## 06 测试
+## 08 测试
 
 ```bash
 pytest tests/ -q
 ```
 
-测试覆盖材料导入、访谈 span、证据引用、结构候选审核、撤回边界、SQLite 存储、Qwen Provider、拓扑计算和 CLI 工作流。
+测试覆盖材料导入、访谈 span、证据引用、结构候选审核、撤回边界、SQLite 存储、Qwen Provider、拓扑计算、CLI 工作流、对抗性多视角辩证分析、视角注册、文档大纲检测、引文验证和文档存储。
 
 ---
 
-## 07 技术栈
+## 09 技术栈
 
 | 组件 | 技术 |
 |------|------|
@@ -371,17 +511,18 @@ pytest tests/ -q
 | **数据库** | SQLite + FTS5 |
 | **Web 框架** | FastAPI |
 | **LLM API** | DashScope OpenAI-compatible API |
+| **文档提取** | pypdf (PDF), HTMLParser (HTML), zipfile (EPUB) |
 | **测试框架** | pytest |
 
 ---
 
-## 08 当前边界
+## 10 当前边界
 
-1.0 提供多源主体结构分析和审核后的画像输入层，为后续生成策略提供基础。
+v2.0 提供多源主体结构分析、对抗性多视角辩证分析和 PageIndex 文档系统，为后续生成策略和更多理论视角（福柯、德里达等）的扩展提供基础。
 
 ---
 
-## 09 License
+## 11 License
 
 MIT
 
