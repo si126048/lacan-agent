@@ -3,6 +3,7 @@ import json, logging, os, textwrap, time
 from typing import Protocol, Type
 from .models import *
 from .behavioral.inference import PROFILE_INFERENCE_SYSTEM, STRUCTURAL_SYSTEM
+from .credentials import detect_credentials
 
 logger = logging.getLogger(__name__)
 
@@ -141,6 +142,14 @@ class QwenProvider:
         raise RuntimeError("LLM_API_ERROR: provider request failed after retries") from last_error
 
     def generate_structured(self, system_prompt, user_payload, output_schema, run_context):
+        payload_text = json.dumps(user_payload, ensure_ascii=False)
+        creds = detect_credentials(payload_text)
+        if creds:
+            logger.warning(
+                "potential credentials detected in material sent to LLM (%d match(es)), "
+                "stage=%s — review material for leaked secrets",
+                len(creds), run_context.get('stage', 'unknown'),
+            )
         stage = run_context.get('stage')
         if stage == 'profile_inference':
             user_content = (

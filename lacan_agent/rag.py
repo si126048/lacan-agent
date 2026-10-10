@@ -3,6 +3,7 @@ import logging, re
 from pathlib import Path
 from .db import Store, checksum, new_id
 from .models import SourceDocument, EvidenceSpan, ConceptCard, ConsentScope
+from .credentials import redact_credentials
 
 logger = logging.getLogger(__name__)
 MAX_SPAN_CHARS = 2000
@@ -129,11 +130,12 @@ def search(store: Store, q: str, project_id: str | None = None, limit: int = 5) 
         pos = d.text.lower().find(q.lower())
         if pos < 0:
             pos = max(0, d.text.lower().find(snip[:20].lower())) if snip else 0
+        excerpt = d.text[max(0, pos - 120):pos + len(q) + 120]
         out.append({
             'document_id': d.id,
             'citation_id': f'{d.id}:{pos}',
-            'excerpt': d.text[max(0, pos - 120):pos + len(q) + 120],
-            'snippet': snip,
+            'excerpt': redact_credentials(excerpt),
+            'snippet': redact_credentials(snip),
             'char_start': pos,
             'char_end': min(len(d.text), pos + len(q)),
             'checksum': d.checksum,

@@ -25,7 +25,7 @@ class SubjectProfiler:
         self.sources_config = Path(sources_config)
         self.root = Path(root) if root else None
         self.consent = consent if isinstance(consent, ConsentPolicy) else ConsentPolicy.model_validate(
-            consent or {'profile_analysis': True}
+            consent or {}
         )
 
     def build(self, participant_id: str, provider=None, *, with_relations: bool = True,

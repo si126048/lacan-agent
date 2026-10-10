@@ -37,7 +37,7 @@ class BehavioralProfiler:
         self.texts_dir = Path(texts_dir)
         self.db_path = Path(db_path) if db_path else None
         self.participants = participants or dict(PARTICIPANT_FILES)
-        self.consent = consent if isinstance(consent, ConsentPolicy) else ConsentPolicy.model_validate(consent or {'profile_analysis': True})
+        self.consent = consent if isinstance(consent, ConsentPolicy) else ConsentPolicy.model_validate(consent or {})
         self._raw_profiles: dict[str, dict] = {}
         self._profiles: dict[str, BehavioralProfile] = {}
 
