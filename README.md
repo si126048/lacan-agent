@@ -252,11 +252,20 @@ API 支持 `.txt`、`.md` 和 `.pdf` 文件上传，单文件大小受 `LACAN_MA
 
 ### CORS 配置
 
-API 默认启用 CORS（跨域资源共享），允许所有来源访问。生产环境建议通过环境变量限制允许的域名：
+API 默认启用 CORS（跨域资源共享），仅允许本地开发来源：
 
-```python
-allow_origins=os.getenv("LACAN_CORS_ORIGINS", "*").split(",")
+- `http://localhost:3000`
+- `http://localhost:8000`
+
+通过环境变量 `LACAN_CORS_ORIGINS` 配置允许的域名（逗号分隔）：
+
+```bash
+# 生产环境示例
+export LACAN_CORS_ORIGINS="https://yourdomain.com,https://app.yourdomain.com"
+uvicorn lacan_agent.api:app --host 0.0.0.0 --port 8000
 ```
+
+**安全警告**：不要在生产环境使用 `*` 通配符，这会允许任何网站访问 API。
 
 ### API 调用示例
 

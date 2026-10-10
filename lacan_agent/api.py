@@ -13,10 +13,13 @@ from .workflow import Workflow
 from .concurrent import ConcurrentAnalyzer, AnalysisTask
 app=FastAPI(title='Lacan-Agent',version='1.0.0')
 
+cors_origins = os.getenv("LACAN_CORS_ORIGINS", "http://localhost:3000,http://localhost:8000").split(",")
+allow_credentials = "*" not in cors_origins
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=cors_origins,
+    allow_credentials=allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
