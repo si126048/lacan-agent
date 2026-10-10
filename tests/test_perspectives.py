@@ -72,10 +72,11 @@ def test_lacanian_no_prompt_variants():
     assert p.critique_prompt_variant is None
 
 
-def test_build_prompts_uses_variant_for_deleuze():
+def test_build_prompts_uses_formal_for_deleuze():
     p = get_perspective('deleuze')
     evidence_prompt = build_perspective_prompts(p, 'evidence')
-    assert evidence_prompt == p.evidence_prompt_variant
+    assert 'Deleuzian empiricist' in evidence_prompt or 'assemblage' in evidence_prompt.lower()
+    assert 'Notation:' in evidence_prompt
 
 
 def test_build_prompts_prepends_framing_for_lacan():

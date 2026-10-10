@@ -8,8 +8,32 @@ _STAGE_MAP = {
     'critic': 'critique_prompt_variant',
 }
 
+_FORMAL_LACAN = {
+    'evidence': 'FORMAL_EVIDENCE_SYSTEM',
+    'interpreter': 'FORMAL_INTERPRETER_SYSTEM',
+    'critic': 'FORMAL_CRITIC_SYSTEM',
+}
+
+_FORMAL_DELEUZE = {
+    'evidence': 'FORMAL_DELEUZE_EVIDENCE',
+    'interpreter': 'FORMAL_DELEUZE_INTERPRETER',
+    'critic': 'FORMAL_DELEUZE_CRITIQUE',
+}
+
 
 def build_perspective_prompts(config: PerspectiveConfig, stage: str) -> str:
+    if config.id == 'deleuze' and stage in _FORMAL_DELEUZE:
+        from ..formal import prompts as fp
+        base = getattr(fp, _FORMAL_DELEUZE[stage])
+        framing = _perspective_framing(config)
+        return framing + '\n\n' + base
+
+    if config.id == 'lacan' and stage in _FORMAL_LACAN:
+        from ..formal import prompts as fp
+        base = getattr(fp, _FORMAL_LACAN[stage])
+        framing = _perspective_framing(config)
+        return framing + '\n\n' + base
+
     variant_attr = _STAGE_MAP.get(stage)
     if variant_attr:
         variant = getattr(config, variant_attr, None)

@@ -19,6 +19,17 @@ PROFILE_INFERENCE_SYSTEM = """你是经验资料整理器，不是临床诊断�
 返回 JSON：topics、episodes、relationships、inferred_traits 四个数组，每项包含 id、text、evidence_span_ids、confidence、alternatives、status、source。"""
 
 
+def _get_formal_profile_system():
+    from ..formal.prompts import FORMAL_PROFILE_INFERENCE
+    return FORMAL_PROFILE_INFERENCE
+
+
+def _get_formal_structural_system():
+    from ..formal.prompts import FORMAL_STRUCTURAL
+    from .models import STRUCTURAL_DIMENSIONS
+    return FORMAL_STRUCTURAL + '\n\nDimensions: ' + ', '.join(sorted(STRUCTURAL_DIMENSIONS))
+
+
 def build_inference_payload(messages: list[dict[str, Any]], limit: int | None = None) -> dict[str, Any]:
     selected = messages if limit is None else messages[:limit]
     return {
@@ -33,7 +44,7 @@ def build_inference_payload(messages: list[dict[str, Any]], limit: int | None = 
 def infer_claims(provider, messages: list[dict[str, Any]]) -> dict[str, list[EvidenceClaim]]:
     """Call a compatible provider and reject ungrounded or malformed claims."""
     result = provider.generate_structured(
-        PROFILE_INFERENCE_SYSTEM,
+        _get_formal_profile_system(),
         build_inference_payload(messages),
         dict,
         {'stage': 'profile_inference'},
@@ -100,7 +111,7 @@ def infer_structural_claims(provider, spans: list[dict[str, Any]]) -> list[Struc
         'allowed_span_ids': [s.get('span_id') for s in spans],
         'allowed_dimensions': sorted(STRUCTURAL_DIMENSIONS),
     }
-    result = provider.generate_structured(STRUCTURAL_SYSTEM, payload, dict, {'stage': 'subject_structure'})
+    result = provider.generate_structured(_get_formal_structural_system(), payload, dict, {'stage': 'subject_structure'})
     allowed = set(payload['allowed_span_ids'])
     claims: list[StructuralClaim] = []
     for index, raw in enumerate(result.get('claims', [])):

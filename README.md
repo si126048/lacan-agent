@@ -1,98 +1,99 @@
 # Hermeneut-Agent
 
-**对抗性多视角话语分析工具**
+**对抗性多视角话语分析工具** — 形式化记号驱动的多理论视角辩证分析，产出可追溯的证据化主体结构画像。
+
+> v2.1 · Python 3.12+ · 243 tests · MIT
 
 ---
 
-<div align="left">
+## 这是什么
+
+Hermeneut 把聊天、访谈、写作样本等研究材料转化为**有证据追溯的主体结构分析**。每个结构候选都必须引用原文证据 span，默认状态为 `candidate`，只有人工审核通过后才进入后续流程。
+
+核心架构是**形式化记号驱动的对抗性多视角分析**：拉康与德勒兹各有独立的形式化记号体系（mathemes / 装配代数），用紧凑的符号表示替代自然语言概念解释，在压缩 token 消耗的同时减少语义漂移。同时内置 PageIndex 文档系统，支持长篇精神分析文本的导入、检索和引文验证。
+
+这不是临床诊断工具，也不把语言口癖直接等同于人格。
+
+---
+
+## 核心能力
 
 | | |
 |---|---|
-| **版本** | 2.0 |
-| **Python** | 3.12+ |
-| **测试** | 230 passed |
-| **许可** | MIT |
-
-</div>
-
----
-
-## 概述
-
-Hermeneut 是一个本地研究工具，用于把聊天、访谈、写作样本和研究观察整理成可追溯的主体结构画像。v2.0 新增对抗性多视角分析（拉康 vs 德勒兹）和 PageIndex 文档系统，支持长篇精神分析文本的处理与引文验证。
-
-项目关注的是证据化的经验分析，不是临床诊断，也不会把语言口癖直接等同于人格。每个结构候选都必须引用材料中的证据 span，默认状态为 `candidate`，只有人工审核通过后才能进入生成策略。
+| **形式化记号系统** | 拉康 mathemes ($, a, S₁, D_m) + 德勒兹装配代数 (Ag, Dt, BwO)，全阶段 token 压缩 38-69% |
+| **对抗性辩证分析** | 多视角独立分析 → 交叉批评 → 综合，内置拉康 vs 德勒兹 |
+| **多源材料导入** | 聊天、访谈、写作样本统一导入，支持 UTF-8 / GB18030 / 微信格式 |
+| **证据追溯** | `MaterialSource` → `EvidenceSpan` → `StructuralCandidate`，全链路来源 checksum |
+| **可扩展视角** | 放置 JSON 配置到 `perspectives/` 即可自动注册（福柯、德里达等） |
+| **PageIndex 文档系统** | 内容寻址存储 (SHA-256)、FTS5 全文检索、层级大纲检测、引文验证 |
+| **多格式提取** | txt / md / pdf / html / epub / docx / xlsx / pptx |
+| **人工审核门禁** | CLI + JSON 审核文件驱动，所有结构候选必须人工批准 |
+| **同意管理** | 细粒度同意 scope、过期、撤回与派生数据清理 |
 
 ---
 
-## 目录
+## 形式化记号系统
+
+v2.1 的核心创新。Agent 内部交流使用数学/拓扑形式表示替代自然语言概念解释，压缩 context 长度、减少语义漂移。
+
+### 拉康记号
 
 ```
-01  功能特性
-02  安装
-03  快速开始
-04  对抗性多视角分析
-05  文档系统
-06  API 服务
-07  隐私与授权
-08  测试
-09  技术栈
-10  当前边界
-11  License
+主体:  $ = 分裂主体    a = objet petit a    A = 大他者
+能指:  S₁ = 主人能指   S₂ = 知识            S = 能指
+运算:  ◇ = 幻想($◇a)  / = 压抑             → = 转喻    ∩ = 隐喻
+享乐:  J = 享乐        JΦ = 阳具享乐        j = 剩余享乐
+
+四话语代数:
+  Dm [S₁→S₂/$→a]   主人话语 — 权威/命令
+  Du [S₂→a/S₁→$]   大学话语 — 中立/知识
+  Dh [$→S₁/a→S₂]   歇斯底里话语 — 质疑/症状
+  Da [a→$/S₂→S₁]   分析者话语 — 沉默/脱落
+
+注册: S=象征界  I=想象界  R=实在界
 ```
 
----
+### 德勒兹记号
 
-## 01 功能特性
+```
+核心:  Ag = 装配    Rz = 根茎    Dm = 欲望机器    BwO = 无器官身体
+运动:  Dt = 去领土化  Rt = 再领土化  Lf = 逃逸线  Bec = 生成
+本体:  Mul = 多元体   Aff = 情动    Int = 强度     V↔A = 虚拟↔实际
+尺度:  Mol = 大尺度(刚性)    mo = 分子(流动)
 
-### 1.0 提供的功能
+运算:  × = 异质连接   ↗ = 去领土化方向   ↘ = 再领土化方向   ∅ = 解体化   ≡ = 编码
+注册:  M = 机器连接   D = 去领土化运动   B = 生成过程   I = 强度/情动
+```
 
-| 功能 | 描述 |
-|------|------|
-| **多源材料导入** | 聊天、访谈、写作和观察材料的统一导入 |
-| **多格式解析** | UTF-8、GB18030、普通逐行文本和微信聊天格式 |
-| **证据追溯** | 稳定的 `MaterialSource`、`EvidenceSpan` 和来源 checksum |
-| **观察层统计** | 消息长度、语气词、括号、拟声词、emoji、媒体和互动对象等 |
-| **结构候选抽取** | 基于 Qwen 的证据约束结构候选 |
-| **拉康结构维度** | 话语位置、大他者、需求与欲望、重复能指、缝合点、幻想、症状重复、享乐、四种话语、RSI 和叙事冲突 |
-| **跨来源互证** | 跨聊天、访谈和写作材料的来源互证候选 |
-| **人工审核** | CLI 和 JSON 审核文件驱动的人工审核流程 |
-| **同意管理** | 参与者同意、过期、撤回和派生数据清理 |
-| **拓扑导出** | 旧版分析流水线的证据校验、文化注释、模糊接地和拓扑导出 |
+### Token 压缩效果
 
-### 2.0 新增功能
-
-| 功能 | 描述 |
-|------|------|
-| **对抗性多视角分析** | 多个理论视角独立分析同一文本后交叉批评，产出更稳健的结果 |
-| **拉康 vs 德勒兹** | 内置两个对抗视角：拉康（能指/匮乏/结构）与德勒兹（装配/生成/机器） |
-| **四阶段辩证管线** | 独立分析 → 交叉批评 → 综合 → 可选报告生成 |
-| **可扩展视角注册** | 放置新 JSON 配置到 `perspectives/` 目录即可自动发现（福柯、德里达等） |
-| **PageIndex 文档存储** | 内容寻址（SHA-256 doc_id）、SQLite + FTS5 全文检索 |
-| **层级大纲检测** | 自动识别 BOOK/CHAPTER/SECTION 结构（英/法/德/西/意多语言） |
-| **引文验证** | NFKC 归一化 + 空白折叠，跨版本/OCR 引文匹配 |
-| **多格式文档提取** | txt/md、pdf（pypdf）、html、epub、office（可选） |
+| 阶段 | 原版 | 形式化 | 压缩 |
+|------|-----:|-------:|-----:|
+| evidence (Lacan) | 667t | 211t | **↓68%** |
+| interpreter (Lacan) | 746t | 312t | **↓58%** |
+| critic (Lacan) | 477t | 238t | **↓50%** |
+| cross-critique | 291t | 150t | **↓49%** |
+| synthesis | 407t | 191t | **↓53%** |
+| profile inference | 258t | 140t | **↓46%** |
+| structural | 282t | 172t | **↓39%** |
 
 ---
 
-## 02 安装
+## 安装
 
 ```bash
-uv venv
-uv pip install -e ".[dev]"
-```
+# uv（推荐）
+uv venv && uv pip install -e ".[dev]"
 
-或：
-
-```bash
+# pip
 pip install -e ".[dev]"
 ```
 
 ---
 
-## 03 快速开始
+## 快速开始
 
-### 传统证据分析
+### 证据分析流程
 
 ```bash
 hermeneut init --project demo
@@ -103,93 +104,30 @@ hermeneut review --run <run_id> --decision approve
 hermeneut export --run <run_id> --pretty
 ```
 
-### 多源主体结构画像
-
-先创建来源清单。路径相对于 `sources.json` 所在目录解析，也可以通过 `--root` 指定材料根目录：
-
-```json
-{
-  "sources": [
-    {
-      "source_id": "chat_a",
-      "participant_id": "A",
-      "source_type": "chat",
-      "path": "chat.txt",
-      "context": "group_chat"
-    },
-    {
-      "source_id": "interview_a",
-      "participant_id": "A",
-      "source_type": "interview",
-      "path": "interview.json",
-      "context": "research_interview"
-    },
-    {
-      "source_id": "writing_a",
-      "participant_id": "A",
-      "source_type": "writing",
-      "path": "continuation.txt",
-      "context": "prompt_1"
-    }
-  ]
-}
-```
-
-访谈 JSON 使用回答文本和问题 ID：
-
-```json
-{
-  "interview_id": "interview_a",
-  "participant_id": "A",
-  "context": "research_interview",
-  "turns": [
-    {
-      "question_id": "A2",
-      "answer_text": "我通常先解释，再决定是否继续。",
-      "tags": ["misrecognition", "other"]
-    }
-  ]
-}
-```
-
-构建和查看：
+### 对抗性多视角分析
 
 ```bash
-hermeneut subject build --participant A --sources sources.json --mode full --batch-size 80 --with-relations --cards-dir data/subject-artifacts
-hermeneut subject show --participant A --cards-dir data/subject-artifacts
-hermeneut subject inspect-motifs --participant A --cards-dir data/subject-artifacts
-hermeneut subject inspect-relations --participant A --cards-dir data/subject-artifacts
-hermeneut subject show-batch-failures --participant A --cards-dir data/subject-artifacts
+# 列出可用视角
+hermeneut perspectives
+
+# 拉康 vs 德勒兹对抗分析
+hermeneut dialectical-analyze \
+  --perspectives lacan,deleuze \
+  --participant A --project demo --source story.txt --mock
+
+# 含综合报告
+hermeneut dialectical-analyze \
+  --perspectives lacan,deleuze \
+  --participant A --project demo --source story.txt --mock --report
 ```
 
-主体分析按重叠窗口覆盖全部消息。原文和规范化文本同时保留在本地处理中，戏仿、谐音、重复标点和模板变体只作为候选；单次表达不会自动进入稳定语言特征。关系层先生成有向互动事件，再由 Qwen 复核关系候选，所有候选都保留 span、时间和场景证据。可用 `--aliases aliases.json` 提供人工确认的参与者别名表，未确认别名不会自动合并。
-
-Qwen 结构抽取需要设置环境变量：
-
-```powershell
-$env:DASHSCOPE_API_KEY = "sk-your-key"
-hermeneut subject build --participant A --sources sources.json --cards-dir data/subject-artifacts
-```
-
-Qwen 失败时仍会生成观察层画像。结构候选必须人工审核：
-
-```json
-{
-  "participant_id": "A",
-  "decisions": [
-    {
-      "claim_id": "claim_1",
-      "status": "approved",
-      "reviewer_id": "researcher",
-      "reason": "聊天和访谈材料均提供支持"
-    }
-  ]
-}
-```
+### 文档系统
 
 ```bash
-hermeneut subject review --participant A --input review.json --cards-dir data/subject-artifacts
-hermeneut subject export --participant A --cards-dir data/subject-artifacts --output subject.json
+hermeneut doc-ingest --path book.pdf --project demo
+hermeneut doc-search --query "objet petit a" --project demo
+hermeneut doc-outline --doc-id <doc_id>
+hermeneut doc-verify --doc-id <doc_id> --quote "欲望是他者的欲望" --page 47
 ```
 
 ### 交互式界面
@@ -198,54 +136,35 @@ hermeneut subject export --participant A --cards-dir data/subject-artifacts --ou
 .\start.ps1
 ```
 
-交互菜单支持传统证据分析，以及主体结构画像的构建、摘要查看和结构候选审核。
-
 ---
 
-## 04 对抗性多视角分析
+## 对抗性多视角分析
 
-v2.0 引入 MISAKA-Agent 式的对抗结构：多个理论视角对同一文本进行独立分析，然后交叉批评，产出更稳健的分析结果。
+多个理论视角对同一文本独立分析后交叉批评，暴露各自盲区，产出比单一视角更稳健的结果。
 
 ### 哲学对抗轴
 
 | 维度 | 拉康 | 德勒兹 |
 |------|------|--------|
-| 本体论 | 匮乏/缺失驱动主体 | 充盈/生产驱动机器 |
-| 语言 | 能指链优先，无意识像语言一样结构 | 语用学优先，语言是欲望机器的装配 |
-| 结构 | 三角结构（想象/象征/实在） | 多元体/根茎（去中心化网络） |
-| 欲望 | 欲望 = 对他者的欲望 | 欲望 = 生产性机器 |
-| 重复 | 强迫性重复，回返被压抑者 | 差异的重复，每次都是新的生产 |
-| 方法 | 解读症状背后的能指逻辑 | 绘制装配的连接与断裂 |
+| **本体论** | 匮乏/缺失驱动主体 | 充盈/生产驱动机器 |
+| **语言** | 能指链优先，无意识像语言一样结构 | 语用学优先，语言是欲望机器的装配 |
+| **结构** | 三角结构（想象/象征/实在） | 多元体/根茎（去中心化网络） |
+| **欲望** | 欲望 = 对他者的欲望 | 欲望 = 生产性机器 |
+| **重复** | 强迫性重复，回返被压抑者 | 差异的重复，每次都是新的生产 |
+| **方法** | 解读症状背后的能指逻辑 | 绘制装配的连接与断裂 |
 
-### 四阶段流程
+### 四阶段辩证管线
 
 ```
-Phase 1 — 独立分析    每个视角独立跑 observe + interpret
-Phase 2 — 交叉批评    N 个视角 round-robin 配对（i 批评 i+1）
-Phase 3 — 综合        接收全部 Phase 1+2 结果，产出综合报告
-Phase 4 — 报告        可选：生成自然语言综合报告
-```
-
-### CLI 使用
-
-```bash
-# 列出可用视角
-hermeneut perspectives
-
-# 拉康-德勒兹对抗分析
-hermeneut dialectical-analyze \
-  --perspectives lacan,deleuze \
-  --participant A --project demo --source story.txt --mock
-
-# 生成综合报告
-hermeneut dialectical-analyze \
-  --perspectives lacan,deleuze \
-  --participant A --project demo --source story.txt --mock --report
+Phase 1  独立分析    每个视角用形式化记号独立跑 observe + interpret
+Phase 2  交叉批评    N 个视角 round-robin 配对（i 批评 i+1）
+Phase 3  综合        接收全部 Phase 1+2 结果，产出综合报告
+Phase 4  报告        可选：生成自然语言综合报告
 ```
 
 ### 扩展新视角
 
-在 `hermeneut/perspectives/` 目录下放置新的 JSON 配置文件即可自动注册：
+在 `hermeneut/perspectives/` 放置 JSON 配置文件即可自动发现：
 
 ```json
 {
@@ -264,204 +183,31 @@ hermeneut dialectical-analyze \
 
 ---
 
-## 05 文档系统
+## 文档系统
 
-PageIndex 文档系统（移植自 MISAKA-Agent）支持长篇精神分析文本的处理。
-
-### 文档导入
-
-```bash
-# 导入文档（自动检测格式、提取页面、检测大纲）
-hermeneut doc-ingest --path book.pdf --project demo
-hermeneut doc-ingest --path seminar.txt --project demo --title "研讨班 XI"
-
-# 支持格式：txt, md, pdf, html, epub, docx, xlsx, pptx
-```
-
-### 文档查询
-
-```bash
-# 查看文档大纲
-hermeneut doc-outline --doc-id abc123def456
-
-# 全文检索
-hermeneut doc-search --query "objet petit a" --project demo
-hermeneut doc-search --query "能指链" --doc-id abc123def456
-
-# 验证引文
-hermeneut doc-verify --doc-id abc123def456 --quote "欲望是他者的欲望" --page 47
-```
-
-### 存储架构
+移植自 MISAKA-Agent 的 PageIndex 文档系统，支持长篇精神分析文本的处理与引文验证。
 
 | 组件 | 说明 |
 |------|------|
 | **内容寻址** | SHA-256 前 12 位作为 doc_id，相同文档自动去重 |
 | **页级存储** | 每页文本独立存储，支持页级导航和检索 |
 | **FTS5 全文索引** | SQLite FTS5 虚拟表，支持中文分词检索 |
-| **大纲检测** | 自动识别 CHAPTER/BOOK/SECTION 等层级结构 |
-| **引文归一化** | NFKC  Unicode 归一化 + 连字符/软连字符/空白折叠 |
+| **大纲检测** | 自动识别 CHAPTER / BOOK / SECTION 层级（英/法/德/西/意多语言） |
+| **引文归一化** | NFKC Unicode 归一化 + 连字符/软连字符/空白折叠，跨版本 OCR 匹配 |
 
 ---
 
-## 06 API 服务
+## API
 
-### 启动服务
+### 启动
 
 ```bash
 uvicorn hermeneut.api:app --host 127.0.0.1 --port 8000
 ```
 
-API 仅绑定本机地址，支持 `.txt`、`.md` 和 `.pdf` 文件上传，单文件大小受 `LACAN_MAX_UPLOAD_BYTES` 限制。
+默认仅绑定本机地址。设置 `LACAN_API_KEY` 环境变量启用 Bearer Token 认证；不设置时无需认证。
 
-**端口配置**：默认使用 8000 端口。如果端口被占用，可以指定其他端口：
-
-```bash
-# 使用 8001 端口
-uvicorn hermeneut.api:app --host 127.0.0.1 --port 8001
-
-# 使用 5000 端口
-uvicorn hermeneut.api:app --host 127.0.0.1 --port 5000
-```
-
-后续 API 调用示例均使用 8000 端口，如果使用了其他端口，请相应替换 URL 中的端口号。
-
-### API Key 认证
-
-通过环境变量 `LACAN_API_KEY` 启用 API Key 认证：
-
-```bash
-# 启用认证
-export LACAN_API_KEY=$(openssl rand -hex 32)
-uvicorn hermeneut.api:app --host 127.0.0.1 --port 8000
-```
-
-**本地开发**：不设置 `LACAN_API_KEY` 时，API 无需认证，方便快速调试。
-
-**启用认证**：设置 API Key 后，所有 API 请求需要携带 Bearer Token：
-
-```bash
-curl -H "Authorization: Bearer YOUR_API_KEY" \
-  http://localhost:8000/api/v1/projects
-```
-
-**Vibe Coding 示例**（Python）：
-
-```python
-import requests
-
-API_BASE = "http://localhost:8000"
-API_KEY = "your-api-key-here"
-headers = {"Authorization": f"Bearer {API_KEY}"}
-
-# 创建项目
-requests.post(f"{API_BASE}/api/v1/projects", 
-              json={"id": "demo", "owner_id": "researcher"},
-              headers=headers)
-
-# 上传材料
-with open("story.txt", "rb") as f:
-    requests.post(f"{API_BASE}/api/v1/participants/A/sources",
-                  files={"file": f},
-                  data={"project_id": "demo"},
-                  headers=headers)
-```
-
-### API 调用示例
-
-**创建项目**：
-
-```bash
-curl -X POST http://localhost:8000/api/v1/projects \
-  -H "Content-Type: application/json" \
-  -d '{"id": "demo", "owner_id": "researcher"}'
-```
-
-**添加参与者**：
-
-```bash
-curl -X POST http://localhost:8000/api/v1/participants \
-  -H "Content-Type: application/json" \
-  -d '{
-    "id": "A",
-    "project_id": "demo",
-    "pseudonym": "Participant A",
-    "consent_scope": {
-      "research_analysis": true,
-      "generation": false
-    }
-  }'
-```
-
-**上传材料**：
-
-```bash
-curl -X POST "http://localhost:8000/api/v1/participants/A/sources" \
-  -F "project_id=demo" \
-  -F "file=@story.txt"
-```
-
-**运行分析**：
-
-```bash
-curl -X POST http://localhost:8000/api/v1/analysis-runs \
-  -H "Content-Type: application/json" \
-  -d '{
-    "project_id": "demo",
-    "participant_id": "A",
-    "source_ids": ["source_1"],
-    "mode": "evidence_first",
-    "idempotency_key": "run_001"
-  }'
-```
-
-**查询状态**：
-
-```bash
-curl http://localhost:8000/api/v1/analysis-runs/run_001
-```
-
-**提交审核**：
-
-```bash
-curl -X POST http://localhost:8000/api/v1/analysis-runs/run_001/reviews \
-  -H "Content-Type: application/json" \
-  -d '{
-    "reviewer_id": "researcher",
-    "decision": "approve",
-    "reason": "Evidence supports all claims"
-  }'
-```
-
-**导出结果**：
-
-```bash
-curl http://localhost:8000/api/v1/analysis-runs/run_001/packet > result.json
-curl http://localhost:8000/api/v1/analysis-runs/run_001/graph > graph.json
-```
-
-**多视角辩证分析**：
-
-```bash
-curl -X POST http://localhost:8000/api/v1/dialectical/run \
-  -H "Content-Type: application/json" \
-  -d '{
-    "project_id": "demo",
-    "participant_id": "A",
-    "source_ids": ["source_1"],
-    "perspective_ids": ["lacan", "deleuze"],
-    "idempotency_key": "dial_001",
-    "generate_report": true
-  }'
-```
-
-**列出可用视角**：
-
-```bash
-curl http://localhost:8000/api/v1/perspectives
-```
-
-### 主要端点
+### 端点
 
 | 方法 | 端点 | 描述 |
 |------|------|------|
@@ -477,59 +223,91 @@ curl http://localhost:8000/api/v1/perspectives
 | `POST` | `/api/v1/dialectical/run` | 运行多视角辩证分析 |
 | `GET` | `/api/v1/perspectives` | 列出可用理论视角 |
 
+### 示例
+
+```bash
+# 创建项目
+curl -X POST http://localhost:8000/api/v1/projects \
+  -H "Content-Type: application/json" \
+  -d '{"id": "demo", "owner_id": "researcher"}'
+
+# 上传材料
+curl -X POST "http://localhost:8000/api/v1/participants/A/sources" \
+  -F "project_id=demo" -F "file=@story.txt"
+
+# 运行辩证分析
+curl -X POST http://localhost:8000/api/v1/dialectical/run \
+  -H "Content-Type: application/json" \
+  -d '{
+    "project_id": "demo",
+    "participant_id": "A",
+    "source_ids": ["source_1"],
+    "perspective_ids": ["lacan", "deleuze"],
+    "idempotency_key": "dial_001",
+    "generate_report": true
+  }'
+```
+
 ---
 
-## 07 隐私与授权
+## 隐私与伦理
 
 | 原则 | 说明 |
 |------|------|
-| **默认关闭** | 所有画像和生成授权默认关闭，必须显式同意 |
-| **细粒度控制** | `profile_analysis`、`agent_simulation`、`story_generation` 和 `public_export` 分开控制 |
+| **默认关闭** | 画像和生成授权默认关闭，必须显式同意 |
+| **细粒度控制** | `profile_analysis` / `agent_simulation` / `story_generation` / `public_export` 分开控制 |
 | **原文保护** | 原始文本不写入 ProfileArtifact 的观察层和生成提示 |
-| **撤回清理** | 撤回会清理原始材料、EvidenceSpan、结构候选、画像、审核文件和派生导出 |
-| **审计记录** | 只保留匿名 ID、时间、操作和清理结果 |
-| **本地存储** | 本地 `data/` 下的画像、报告、数据库和上传材料默认不提交到 GitHub |
+| **撤回清理** | 撤回时清理原始材料、EvidenceSpan、结构候选、画像、审核文件和派生导出 |
+| **本地存储** | 数据库和上传材料默认不提交到 GitHub |
 
 ---
 
-## 08 测试
+## 开发
 
 ```bash
-pytest tests/ -q
+pytest tests/ -q          # 运行全部测试 (243)
+ruff check hermeneut/     # 代码检查
 ```
-
-测试覆盖材料导入、访谈 span、证据引用、结构候选审核、撤回边界、SQLite 存储、Qwen Provider、拓扑计算、CLI 工作流、对抗性多视角辩证分析、视角注册、文档大纲检测、引文验证和文档存储。
-
----
-
-## 09 技术栈
 
 | 组件 | 技术 |
 |------|------|
-| **语言** | Python 3.12+ |
-| **数据验证** | Pydantic v2 |
-| **数据库** | SQLite + FTS5 |
-| **Web 框架** | FastAPI |
-| **LLM API** | DashScope OpenAI-compatible API |
-| **文档提取** | pypdf (PDF), HTMLParser (HTML), zipfile (EPUB) |
-| **测试框架** | pytest |
+| 语言 | Python 3.12+ |
+| 数据验证 | Pydantic v2 |
+| 数据库 | SQLite + FTS5 |
+| Web 框架 | FastAPI + Uvicorn |
+| LLM | DashScope (通义千问) OpenAI-compatible API |
+| 形式化记号 | `hermeneut/formal/` — mathemes + discourse algebra + register taxonomy |
+| 文档提取 | pypdf / HTMLParser / zipfile |
+| 测试 | pytest + pytest-asyncio |
 
 ---
 
-## 10 当前边界
+## 多源主体结构画像
 
-v2.0 提供多源主体结构分析、对抗性多视角辩证分析和 PageIndex 文档系统，为后续生成策略和更多理论视角（福柯、德里达等）的扩展提供基础。
+除单源证据分析外，Hermeneut 支持跨来源互证的主体结构画像构建：
+
+```json
+{
+  "sources": [
+    { "source_id": "chat_a", "participant_id": "A", "source_type": "chat", "path": "chat.txt" },
+    { "source_id": "interview_a", "participant_id": "A", "source_type": "interview", "path": "interview.json" },
+    { "source_id": "writing_a", "participant_id": "A", "source_type": "writing", "path": "continuation.txt" }
+  ]
+}
+```
+
+```bash
+hermeneut subject build --participant A --sources sources.json --mode full \
+  --batch-size 80 --with-relations --cards-dir data/subject-artifacts
+hermeneut subject show --participant A --cards-dir data/subject-artifacts
+hermeneut subject review --participant A --input review.json --cards-dir data/subject-artifacts
+hermeneut subject export --participant A --cards-dir data/subject-artifacts --output subject.json
+```
+
+主体分析按重叠窗口覆盖全部消息。关系层先生成有向互动事件，再由 Qwen 复核关系候选。所有候选保留 span、时间和场景证据。可用 `--aliases aliases.json` 提供人工确认的参与者别名表。
+
+Qwen 结构抽取需要设置 `DASHSCOPE_API_KEY` 环境变量。Qwen 失败时仍会生成观察层画像。
 
 ---
 
-## 11 License
-
-MIT
-
----
-
-<div align="center">
-
-**Hermeneut-Agent** · 基于证据的主体结构分析
-
-</div>
+MIT License
