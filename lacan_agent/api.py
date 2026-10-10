@@ -3,7 +3,6 @@ import os, tempfile, uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends, status
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
@@ -13,17 +12,6 @@ from .rag import ingest, search
 from .workflow import Workflow
 from .concurrent import ConcurrentAnalyzer, AnalysisTask
 app=FastAPI(title='Lacan-Agent',version='1.0.0')
-
-cors_origins = os.getenv("LACAN_CORS_ORIGINS", "http://localhost:3000,http://localhost:8000").split(",")
-allow_credentials = "*" not in cors_origins
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=cors_origins,
-    allow_credentials=allow_credentials,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 API_KEY = os.getenv("LACAN_API_KEY")
 security = HTTPBearer(auto_error=False)

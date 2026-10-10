@@ -229,57 +229,25 @@ lacan-agent profile show --participant 灯 --cards-dir data/profile-cards
 
 ### 启动服务
 
-**本地开发**（仅本机访问）：
-
 ```bash
 uvicorn lacan_agent.api:app --host 127.0.0.1 --port 8000
 ```
 
-**允许外部访问**（局域网或公网部署）：
-
-```bash
-uvicorn lacan_agent.api:app --host 0.0.0.0 --port 8000
-```
-
-**Docker 部署**：
-
-```bash
-docker build -t lacan-agent .
-docker run -p 8000:8000 -v $(pwd)/data:/data lacan-agent
-```
-
-API 支持 `.txt`、`.md` 和 `.pdf` 文件上传，单文件大小受 `LACAN_MAX_UPLOAD_BYTES` 限制。
-
-### CORS 配置
-
-API 默认启用 CORS（跨域资源共享），仅允许本地开发来源：
-
-- `http://localhost:3000`
-- `http://localhost:8000`
-
-通过环境变量 `LACAN_CORS_ORIGINS` 配置允许的域名（逗号分隔）：
-
-```bash
-# 生产环境示例
-export LACAN_CORS_ORIGINS="https://yourdomain.com,https://app.yourdomain.com"
-uvicorn lacan_agent.api:app --host 0.0.0.0 --port 8000
-```
-
-**安全警告**：不要在生产环境使用 `*` 通配符，这会允许任何网站访问 API。
+API 仅绑定本机地址，支持 `.txt`、`.md` 和 `.pdf` 文件上传，单文件大小受 `LACAN_MAX_UPLOAD_BYTES` 限制。
 
 ### API Key 认证
 
 通过环境变量 `LACAN_API_KEY` 启用 API Key 认证：
 
 ```bash
-# 生成随机 API Key
+# 启用认证
 export LACAN_API_KEY=$(openssl rand -hex 32)
-uvicorn lacan_agent.api:app --host 0.0.0.0 --port 8000
+uvicorn lacan_agent.api:app --host 127.0.0.1 --port 8000
 ```
 
 **本地开发**：不设置 `LACAN_API_KEY` 时，API 无需认证，方便快速调试。
 
-**生产环境**：必须设置 API Key，所有 API 请求需要携带 Bearer Token：
+**启用认证**：设置 API Key 后，所有 API 请求需要携带 Bearer Token：
 
 ```bash
 curl -H "Authorization: Bearer YOUR_API_KEY" \
@@ -308,31 +276,13 @@ with open("story.txt", "rb") as f:
                   headers=headers)
 ```
 
-**环境变量配置**：
-
-```bash
-# .env 文件示例
-LACAN_API_KEY=sk-abc123def456...
-LACAN_CORS_ORIGINS=https://your-app.com
-LACAN_DB_PATH=/data/lacan.db
-```
-
 ### API 调用示例
-
-以下示例假设未设置 `LACAN_API_KEY`（本地开发模式）。如果启用了 API Key 认证，需要在所有请求中添加 `-H "Authorization: Bearer YOUR_API_KEY"`。
 
 **创建项目**：
 
 ```bash
-# 无认证（本地开发）
 curl -X POST http://localhost:8000/api/v1/projects \
   -H "Content-Type: application/json" \
-  -d '{"id": "demo", "owner_id": "researcher"}'
-
-# 有认证（生产环境）
-curl -X POST http://localhost:8000/api/v1/projects \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_API_KEY" \
   -d '{"id": "demo", "owner_id": "researcher"}'
 ```
 
