@@ -83,10 +83,12 @@ def project(x:ProjectIn):
 @app.post('/api/v1/theory/sources',status_code=202,dependencies=[Depends(verify_api_key)])
 def theory(project_id: str = Form(...), file: UploadFile = File(...)):
     if not store.get_project(project_id): raise HTTPException(404,'PROJECT_NOT_FOUND')
-    try:return _ingest_upload(file, project_id).model_dump(exclude={'text'})
+    try:return _ingest_upload(file, project_id).model_dump(exclude={'text', 'origin'})
     except ValueError as e: raise HTTPException(422,str(e))
 @app.get('/api/v1/theory/search',dependencies=[Depends(verify_api_key)])
-def theory_search(project_id:str,q:str,limit:int=5): return {'items':search(store,q,min(limit,5))}
+def theory_search(project_id:str,q:str,limit:int=5): 
+    if not store.get_project(project_id): raise HTTPException(404,'PROJECT_NOT_FOUND')
+    return {'items':search(store,q,project_id,min(limit,5))}
 @app.post('/api/v1/participants',status_code=201,dependencies=[Depends(verify_api_key)])
 def participant(x:ParticipantIn):
     if not store.get_project(x.project_id):raise HTTPException(404,'PROJECT_NOT_FOUND')
@@ -96,7 +98,7 @@ def source(pid:str, project_id: str = Form(...), file: UploadFile = File(...)):
     p=store.get_participant(project_id,pid)
     if not p:raise HTTPException(404,'PARTICIPANT_NOT_FOUND')
     if p.withdrawn_at or not _consent_active(p.consent_scope):raise HTTPException(403,'CONSENT_REQUIRED')
-    try:return _ingest_upload(file, project_id, pid, p.consent_scope).model_dump(exclude={'text'})
+    try:return _ingest_upload(file, project_id, pid, p.consent_scope).model_dump(exclude={'text', 'origin'})
     except ValueError as e: raise HTTPException(422,str(e))
 @app.post('/api/v1/analysis-runs',status_code=202,dependencies=[Depends(verify_api_key)])
 def analysis(x:RunIn):

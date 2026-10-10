@@ -100,17 +100,28 @@ def ingest(store: Store, path: str, project_id: str, participant_id: str|None=No
     return d
 
 
-def search(store: Store, q: str, limit: int = 5) -> list[dict]:
+def search(store: Store, q: str, project_id: str | None = None, limit: int = 5) -> list[dict]:
     q = q.strip()
     if not q:
         return []
     # Treat user input as terms rather than raw FTS5 syntax.
     safe_query = ' '.join(f'"{term.replace(chr(34), "")}"' for term in q.split())
-    rows = store.conn.execute(
-        "SELECT d.data, snippet(document_fts, 1, '**', '**', '...', 32) as snip "
-        "FROM document_fts JOIN documents d ON d.id = document_fts.document_id "
-        "WHERE document_fts MATCH ? LIMIT ?", (safe_query, max(1, min(limit, 100)))
-    ).fetchall()
+    
+    if project_id:
+        rows = store.conn.execute(
+            "SELECT d.data, snippet(document_fts, 1, '**', '**', '...', 32) as snip "
+            "FROM document_fts JOIN documents d ON d.id = document_fts.document_id "
+            "WHERE document_fts MATCH ? AND d.project_id = ? LIMIT ?", 
+            (safe_query, project_id, max(1, min(limit, 100)))
+        ).fetchall()
+    else:
+        rows = store.conn.execute(
+            "SELECT d.data, snippet(document_fts, 1, '**', '**', '...', 32) as snip "
+            "FROM document_fts JOIN documents d ON d.id = document_fts.document_id "
+            "WHERE document_fts MATCH ? LIMIT ?", 
+            (safe_query, max(1, min(limit, 100)))
+        ).fetchall()
+    
     out = []
     for r in rows:
         d = SourceDocument.model_validate_json(r['data'])
