@@ -8,22 +8,15 @@ from lacan_agent.models import (
 from lacan_agent.db import checksum
 
 
-def test_consent_defaults_are_false():
+def test_consent_defaults():
     cs = ConsentScope()
-    assert cs.research_analysis is False
-    assert cs.human_review is False
-    assert cs.generation is False
-    assert cs.training is False
-    assert cs.public_display is False
-    assert cs.expires_at is None
     assert cs.withdrawn_at is None
+    assert cs.expires_at is None
 
 
-def test_consent_opt_in():
-    cs = ConsentScope(research_analysis=True, generation=True)
-    assert cs.research_analysis is True
-    assert cs.generation is True
-    assert cs.human_review is False
+def test_consent_withdrawal():
+    cs = ConsentScope(withdrawn_at='2026-01-01T00:00:00Z')
+    assert cs.withdrawn_at == '2026-01-01T00:00:00Z'
 
 
 def test_run_state_enum_values():

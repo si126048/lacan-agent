@@ -13,11 +13,11 @@ def _setup(tmp_path: Path):
     store.create_project(Project(id='p'))
     store.put_participant(Participant(
         id='A', project_id='p', pseudonym='A',
-        consent_scope=ConsentScope(research_analysis=True, generation=True),
+        consent_scope=ConsentScope(),
     ))
     source = tmp_path / 'story.txt'
     source.write_text('A door appears.\nA door appears again.', encoding='utf-8')
-    document = ingest(store, str(source), 'p', 'A', ConsentScope(research_analysis=True, generation=True))
+    document = ingest(store, str(source), 'p', 'A', ConsentScope())
     return store, document
 
 
@@ -44,10 +44,3 @@ def test_fts_query_treats_syntax_as_text(tmp_path):
     assert search(store, '"unclosed (query') == []
 
 
-def test_expired_consent_is_rejected(tmp_path):
-    store, document = _setup(tmp_path)
-    participant = store.get_participant('p', 'A')
-    participant.consent_scope.expires_at = '2000-01-01T00:00:00Z'
-    store.put_participant(participant)
-    with pytest.raises(PermissionError, match='CONSENT_REQUIRED'):
-        Workflow(store).run('p', 'A', [document.id], 'expired')

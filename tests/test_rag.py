@@ -120,10 +120,10 @@ def test_ingest_with_participant(tmp_path):
     s.create_project(Project(id="p"))
     f = tmp_path / "chat.txt"
     f.write_text("participant says hello", encoding="utf-8")
-    cs = ConsentScope(research_analysis=True)
+    cs = ConsentScope()
     d = ingest(s, str(f), "p", "A", cs)
     assert d.participant_id == "A"
-    assert d.consent_scope.research_analysis is True
+    assert d.consent_scope.withdrawn_at is None
 
 
 def test_chat_format_detection(tmp_path):

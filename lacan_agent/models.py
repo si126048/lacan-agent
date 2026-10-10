@@ -10,13 +10,8 @@ class ReviewStatus(StrEnum):
 class ReviewDecision(StrEnum):
     APPROVE='approve'; REJECT='reject'; REVISE='revise'
 class ConsentScope(BaseModel):
-    research_analysis: bool = False
-    human_review: bool = False
-    generation: bool = False
-    training: bool = False
-    public_display: bool = False
-    expires_at: str | None = None
     withdrawn_at: str | None = None
+    expires_at: str | None = None
 class Project(BaseModel):
     id: str
     policy_version: str = '1.0'

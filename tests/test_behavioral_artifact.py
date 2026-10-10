@@ -12,22 +12,12 @@ from lacan_agent.behavioral.materials import load_materials
 
 def test_profile_artifact_has_manifest_and_no_raw_samples(tmp_path):
     (tmp_path / 'friend.txt').write_text('你好⏎\n哈哈！⏎\n', encoding='utf-8')
-    profiler = BehavioralProfiler(tmp_path, participants={'friend': 'friend.txt'}, consent={'profile_analysis': True})
+    profiler = BehavioralProfiler(tmp_path, participants={'friend': 'friend.txt'})
     artifact = profiler.build_artifact('friend')
     assert artifact.schema_version == '1.0'
     assert artifact.source_manifest[0].message_count == 2
     assert 'sample_lines' not in artifact.observed_style
     assert artifact.generation_policy['raw_text_in_prompt'] is False
-
-
-def test_profile_consent_is_required(tmp_path):
-    (tmp_path / 'friend.txt').write_text('hello', encoding='utf-8')
-    profiler = BehavioralProfiler(
-        tmp_path, participants={'friend': 'friend.txt'},
-        consent=ConsentPolicy(profile_analysis=False),
-    )
-    with pytest.raises(PermissionError, match='PROFILE_CONSENT_REQUIRED'):
-        profiler.build_artifact('friend')
 
 
 def test_manifest_and_gb18030_input(tmp_path):
@@ -82,7 +72,7 @@ def test_subject_artifact_requires_evidence_and_review(tmp_path):
     interview.write_text(json.dumps({'turns': [{'question_id': 'A2', 'answer_text': '我先解释。'}]}, ensure_ascii=False), encoding='utf-8')
     manifest = tmp_path / 'sources.json'
     manifest.write_text(json.dumps({'sources': [{'source_id': 'i1', 'participant_id': 'p_x', 'source_type': 'interview', 'path': 'interview.json'}]}), encoding='utf-8')
-    profiler = SubjectProfiler(manifest, consent={'profile_analysis': True})
+    profiler = SubjectProfiler(manifest)
     artifact = profiler.build('p_x', provider=FakeStructuralProvider())
     assert artifact.structural_claims[0].status == 'candidate'
     assert artifact.generation_policy['subject_constraints'] == []

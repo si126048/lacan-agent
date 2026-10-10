@@ -209,8 +209,8 @@ def execute(args: argparse.Namespace) -> Any:
         participant = store.get_participant(args.project, args.participant)
         if participant is None:
             raise CliError(f"participant not found: {args.participant}")
-        if participant.withdrawn_at or not participant.consent_scope.research_analysis:
-            raise CliError("CONSENT_REQUIRED")
+        if participant.withdrawn_at:
+            raise CliError("PARTICIPANT_WITHDRAWN")
         return ingest(store, args.file, args.project, args.participant, participant.consent_scope).model_dump(exclude={"text"})
     if cmd == "analyze":
         participant = store.get_participant(args.project, args.participant)

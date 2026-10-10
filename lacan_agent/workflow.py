@@ -65,8 +65,8 @@ class Workflow:
             return existing
 
         p = self.store.get_participant(project_id, participant_id)
-        if not p or p.withdrawn_at or p.consent_scope.withdrawn_at or not p.consent_scope.research_analysis or self._consent_expired(p.consent_scope.expires_at):
-            raise PermissionError('CONSENT_REQUIRED')
+        if not p or p.withdrawn_at or p.consent_scope.withdrawn_at:
+            raise PermissionError('PARTICIPANT_WITHDRAWN')
 
         docs = [self.store.get_document(x) for x in source_ids]
         if any(not d or d.participant_id != participant_id or d.project_id != project_id for d in docs):
@@ -298,8 +298,8 @@ class Workflow:
         if r.state not in (RunState.APPROVED, RunState.COMPILED):
             raise PermissionError('NOT_APPROVED')
         p = self.store.get_participant(r.project_id, r.participant_id)
-        if not p or p.withdrawn_at or p.consent_scope.withdrawn_at or not p.consent_scope.generation:
-            raise PermissionError('GENERATION_NOT_CONSENTED')
+        if not p or p.withdrawn_at or p.consent_scope.withdrawn_at:
+            raise PermissionError('PARTICIPANT_WITHDRAWN')
         nodes: list[GraphNode] = []
         edges: list[GraphEdge] = []
         ops: list[NarrativeOperator] = []

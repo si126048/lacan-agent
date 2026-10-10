@@ -35,8 +35,8 @@ class SubjectProfiler:
         sources, spans = load_materials(self.sources_config, root=self.root, participant_id=participant_id)
         for source in sources:
             scope = source.consent_scope
-            if scope.get('profile_analysis') is False or scope.get('withdrawn_at'):
-                raise PermissionError(f'SOURCE_CONSENT_REQUIRED:{source.source_id}')
+            if scope.get('withdrawn_at'):
+                raise PermissionError(f'SOURCE_WITHDRAWN:{source.source_id}')
         source_profiles = self._source_profiles(sources, spans)
         messages = [{
             'message_id': s.message_id or s.span_id.replace('span_', 'msg_'),
@@ -112,8 +112,6 @@ class SubjectProfiler:
                 'subject_constraints': [c.claim_id for c in approved],
                 'approved_claims_only': True,
                 'raw_text_in_prompt': False,
-                'allow_agent_simulation': self.consent.agent_simulation,
-                'allow_story_generation': self.consent.story_generation,
             },
             quality={'sample_size': len(spans), 'coverage': 1.0 if spans else 0.0, 'warnings': warnings},
             review_state='approved' if claims and len(approved) == len(claims) else 'candidate',

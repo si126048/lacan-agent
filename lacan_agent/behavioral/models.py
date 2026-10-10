@@ -86,15 +86,11 @@ class DistillationCard(BaseModel):
 
 
 class ConsentPolicy(BaseModel):
-    profile_analysis: bool = False
-    agent_simulation: bool = False
-    story_generation: bool = False
-    public_export: bool = False
-    expires_at: str | None = None
     withdrawn_at: str | None = None
+    expires_at: str | None = None
 
     def is_active(self) -> bool:
-        if self.withdrawn_at or not self.profile_analysis:
+        if self.withdrawn_at:
             return False
         if not self.expires_at:
             return True

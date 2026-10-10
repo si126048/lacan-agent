@@ -234,9 +234,6 @@ class BehavioralProfiler:
             relationships=claims['relationships'],
             inferred_traits=claims['inferred_traits'],
             generation_policy={
-                'allow_agent_simulation': self.consent.agent_simulation,
-                'allow_story_generation': self.consent.story_generation,
-                'allow_public_export': self.consent.public_export,
                 'raw_text_in_prompt': False,
             },
             quality={

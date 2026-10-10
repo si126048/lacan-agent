@@ -54,7 +54,7 @@ def _ingest_upload(file: UploadFile, project_id: str, participant_id: str | None
             temp_path.unlink(missing_ok=True)
 
 def _consent_active(scope: ConsentScope) -> bool:
-    if scope.withdrawn_at or not scope.research_analysis:
+    if scope.withdrawn_at:
         return False
     if not scope.expires_at:
         return True
@@ -97,7 +97,7 @@ def participant(x:ParticipantIn):
 def source(pid:str, project_id: str = Form(...), file: UploadFile = File(...)):
     p=store.get_participant(project_id,pid)
     if not p:raise HTTPException(404,'PARTICIPANT_NOT_FOUND')
-    if p.withdrawn_at or not _consent_active(p.consent_scope):raise HTTPException(403,'CONSENT_REQUIRED')
+    if p.withdrawn_at or not _consent_active(p.consent_scope):raise HTTPException(403,'PARTICIPANT_WITHDRAWN')
     try:return _ingest_upload(file, project_id, pid, p.consent_scope).model_dump(exclude={'text', 'origin'})
     except ValueError as e: raise HTTPException(422,str(e))
 @app.post('/api/v1/analysis-runs',status_code=202,dependencies=[Depends(verify_api_key)])

@@ -31,14 +31,13 @@ def test_project_not_found(tmp_path):
 def test_participant_roundtrip(tmp_path):
     s = _store(tmp_path)
     s.create_project(Project(id="p"))
-    cs = ConsentScope(research_analysis=True, human_review=True)
+    cs = ConsentScope()
     part = Participant(id="A", project_id="p", pseudonym="anon_A", consent_scope=cs)
     s.put_participant(part)
     got = s.get_participant("p", "A")
     assert got is not None
     assert got.pseudonym == "anon_A"
-    assert got.consent_scope.research_analysis is True
-    assert got.consent_scope.generation is False
+    assert got.consent_scope.withdrawn_at is None
 
 
 def test_participant_not_found(tmp_path):

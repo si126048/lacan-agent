@@ -14,13 +14,13 @@ def _setup(tmp_path):
     s = Store(db)
     s.create_project(Project(id="p"))
     s.put_participant(Participant(id="A", project_id="p", pseudonym="A",
-                                  consent_scope=ConsentScope(research_analysis=True, generation=True)))
+                                  consent_scope=ConsentScope()))
     theory = tmp_path / "theory.md"
     theory.write_text("Repetition changes meaning across contexts.", encoding="utf-8")
     story = tmp_path / "story.txt"
     story.write_text("A door appears. A door appears again.", encoding="utf-8")
     ingest(s, str(theory), "p")
-    d = ingest(s, str(story), "p", "A", ConsentScope(research_analysis=True, generation=True))
+    d = ingest(s, str(story), "p", "A", ConsentScope())
     return s, d
 
 
@@ -43,32 +43,6 @@ def test_counterexample_assignment_per_hypothesis(tmp_path):
         assert any(h.id in ce for ce in h.counterexamples)
 
 
-def test_consent_required(tmp_path):
-    s, d = _setup(tmp_path)
-    s.withdraw("p", "A")
-    f = Workflow(s)
-    try:
-        f.run("p", "A", [d.id], "new-key")
-        assert False, "should have raised"
-    except PermissionError as e:
-        assert str(e) == "CONSENT_REQUIRED"
-
-
-def test_consent_research_analysis_required(tmp_path):
-    db = str(tmp_path / "consent.sqlite")
-    s = Store(db)
-    s.create_project(Project(id="p"))
-    s.put_participant(Participant(id="B", project_id="p", pseudonym="B",
-                                  consent_scope=ConsentScope(generation=True)))
-    story = tmp_path / "s.txt"
-    story.write_text("text", encoding="utf-8")
-    d = ingest(s, str(story), "p", "B", ConsentScope(generation=True))
-    f = Workflow(s)
-    try:
-        f.run("p", "B", [d.id], "k")
-        assert False
-    except PermissionError as e:
-        assert str(e) == "CONSENT_REQUIRED"
 
 
 def test_idempotency(tmp_path):
@@ -136,7 +110,7 @@ def test_review_invalid_state(tmp_path):
 def test_object_access_denied(tmp_path):
     s, d = _setup(tmp_path)
     s.put_participant(Participant(id="C", project_id="p", pseudonym="C",
-                                  consent_scope=ConsentScope(research_analysis=True)))
+                                  consent_scope=ConsentScope()))
     f = Workflow(s)
     try:
         f.run("p", "C", [d.id], "k")

@@ -29,7 +29,7 @@ def test_idempotency_and_withdrawal(tmp_path):
     s,d=setup(); f=Workflow(s); r1=f.run('p','A',[d.id],'same'); r2=f.run('p','A',[d.id],'same'); assert r1.id==r2.id
     s.withdraw('p','A')
     try: f.run('p','A',[d.id],'new'); assert False
-    except PermissionError as e: assert str(e)=='CONSENT_REQUIRED'
+    except PermissionError as e: assert str(e)=='PARTICIPANT_WITHDRAWN'
 
 def test_injection_is_data(tmp_path):
     BASE.mkdir(exist_ok=True); db=BASE/('inj-'+__import__('uuid').uuid4().hex+'.sqlite')
