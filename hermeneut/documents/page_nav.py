@@ -1,3 +1,7 @@
+# Derived from MISAKA-Agent (https://github.com/Luciole-Studio/Misaka-Agent)
+# Copyright 2026 Luciole Studio. Licensed under Apache License 2.0.
+# See NOTICE and LICENSE-MISAKA in the project root.
+
 """Page-based navigation helpers for indexed documents."""
 from __future__ import annotations
 from .store import DocumentStore

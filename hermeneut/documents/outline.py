@@ -1,3 +1,7 @@
+# Derived from MISAKA-Agent (https://github.com/Luciole-Studio/Misaka-Agent)
+# Copyright 2026 Luciole Studio. Licensed under Apache License 2.0.
+# See NOTICE and LICENSE-MISAKA in the project root.
+
 """Hierarchical outline detection for plain-text and Markdown documents.
 
 Ported from MISAKA-Agent's text_outline.py. Reads structure from a text

@@ -1,0 +1,47 @@
+Hermeneut-Agent
+Copyright (c) 2026 hermeneut contributors
+
+---
+
+This product includes software derived from MISAKA-Agent,
+developed by Luciole Studio (https://github.com/Luciole-Studio/Misaka-Agent).
+
+MISAKA-Agent is licensed under the Apache License, Version 2.0.
+Copyright 2026 Luciole Studio.
+
+The following components in Hermeneut-Agent are adapted from MISAKA-Agent:
+
+  - hermeneut/documents/store.py        — content-addressed document store
+  - hermeneut/documents/outline.py      — hierarchical outline detection
+  - hermeneut/documents/quote_verify.py — quote normalization and verification
+  - hermeneut/documents/page_nav.py     — page-based navigation
+  - hermeneut/documents/extractors/     — multi-format text extractors
+    (text, pdf, html, epub, office)
+
+These files were ported from MISAKA-Agent's misaka/core/documents/ module
+and modified for use in Hermeneut-Agent's evidence-traced discourse analysis
+pipeline. Modifications include adaptation to the DocumentStore SQLite schema,
+integration with the evidence span system, and removal of features not needed
+by Hermeneut (OCR routing, VLM integration, PageIndex Flash).
+
+The adversarial multi-perspective dialectical architecture was also inspired
+by MISAKA-Agent's multi-agent orchestration design.
+
+A copy of the Apache License 2.0 under which MISAKA-Agent is distributed
+is included as LICENSE-MISAKA in this repository.
+
+Per Apache License 2.0 Section 4(a), a copy of the license is provided.
+Per Apache License 2.0 Section 4(b), modified files carry prominent notices.
+Per Apache License 2.0 Section 4(d), the original NOTICE is reproduced below.
+
+--- Original NOTICE from MISAKA-Agent ---
+
+MISAKA
+Copyright 2026 Luciole Studio
+
+This product includes MISAKA, developed by Luciole Studio
+(https://github.com/Luciole-Studio/Misaka-Agent).
+
+MISAKA is licensed under the Apache License, Version 2.0. Anyone who
+redistributes MISAKA, or a work derived from it, must keep the attribution
+above with the distribution, as section 4(d) of the License requires.
