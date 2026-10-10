@@ -2,7 +2,7 @@
 
 **对抗性多视角话语分析工具** — 形式化记号驱动的多理论视角辩证分析，产出可追溯的证据化主体结构画像。
 
-> v2.1 · Python 3.12+ · 243 tests · MIT
+> v2.2 · Python 3.12+ · 267 tests · MIT
 
 ---
 
@@ -250,6 +250,45 @@ curl -X POST http://localhost:8000/api/v1/dialectical/run \
 
 ---
 
+## ACP（Agent Client Protocol）
+
+Hermeneut 支持通过 ACP 协议在 Zed 等编辑器中直接调用，选中文字即可分析。
+
+### 启动
+
+```bash
+hermeneut-acp --mock          # 无需 API key（mock 模式）
+hermeneut-acp                 # 需要 DASHSCOPE_API_KEY
+python -m hermeneut.acp --mock
+```
+
+### Zed 配置
+
+在 Zed `settings.json` 中添加：
+
+```json
+{
+  "agent_servers": {
+    "hermeneut": {
+      "type": "custom",
+      "command": "python",
+      "args": ["-m", "hermeneut.acp", "--mock"]
+    }
+  }
+}
+```
+
+### 支持的操作
+
+| 输入示例 | 操作 |
+|----------|------|
+| "列出可用视角" / "perspectives" | 列出已注册的理论视角 |
+| "分析以下文本：..." | 单视角证据分析 |
+| "辩证分析：..." | 拉康 vs 德勒兹对抗性分析 |
+| "搜索：能指" | 文档全文检索 |
+
+---
+
 ## 隐私与伦理
 
 | 原则 | 说明 |
@@ -265,7 +304,7 @@ curl -X POST http://localhost:8000/api/v1/dialectical/run \
 ## 开发
 
 ```bash
-pytest tests/ -q          # 运行全部测试 (243)
+pytest tests/ -q          # 运行全部测试 (267)
 ruff check hermeneut/     # 代码检查
 ```
 

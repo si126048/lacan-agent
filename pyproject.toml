@@ -1,6 +1,6 @@
 [project]
 name = "hermeneut-agent"
-version = "2.0.0"
+version = "2.2.0"
 description = "Adversarial multi-perspective discourse analysis toolkit"
 requires-python = ">=3.12"
 dependencies = ["fastapi>=0.115", "uvicorn>=0.34", "pydantic>=2.10", "pypdf>=5.0", "httpx>=0.28", "openai>=1.0", "aiosqlite>=0.20", "python-multipart>=0.0.9"]
@@ -8,6 +8,7 @@ dependencies = ["fastapi>=0.115", "uvicorn>=0.34", "pydantic>=2.10", "pypdf>=5.0
 dev = ["pytest>=8", "pytest-asyncio>=1", "ruff>=0.5"]
 [project.scripts]
 hermeneut-agent = "hermeneut.cli:main"
+hermeneut-acp = "hermeneut.acp.server:main"
 [build-system]
 requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
