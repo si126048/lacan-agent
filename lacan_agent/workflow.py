@@ -61,6 +61,8 @@ class Workflow:
 
     def run(self, project_id: str, participant_id: str, source_ids: list[str], idem: str) -> AnalysisRun:
         existing = self.store.get_run_by_idem(project_id, idem)
+        if existing and sorted(existing.source_ids) != sorted(source_ids):
+            raise ValueError('IDEMPOTENCY_SOURCE_MISMATCH')
         if existing:
             return existing
 

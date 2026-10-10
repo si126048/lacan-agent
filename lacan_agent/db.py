@@ -113,6 +113,8 @@ class Store:
             self.conn.rollback()
             existing = self.get_run_by_idem(r.project_id, r.idempotency_key)
             if existing is not None:
+                if sorted(existing.source_ids) != sorted(r.source_ids):
+                    raise ValueError('IDEMPOTENCY_SOURCE_MISMATCH')
                 return existing
             raise
     def get_run(self,rid):

@@ -135,7 +135,7 @@ def build_parser() -> argparse.ArgumentParser:
     pe = profile_sub.add_parser("export", help="export one profile artifact")
     pe.add_argument("--participant", required=True)
     pe.add_argument("--texts-dir", default="data/participant_texts")
-    pe.add_argument("--output", required=True)
+    pe.add_argument("--to", required=True, dest="artifact_path")
     pd = profile_sub.add_parser("delete", help="delete one derived profile artifact")
     pd.add_argument("--participant", required=True)
     pd.add_argument("--cards-dir", default="data/profile-cards")
@@ -163,7 +163,7 @@ def build_parser() -> argparse.ArgumentParser:
     se = subject_sub.add_parser("export", help="export a subject artifact")
     se.add_argument("--participant", required=True)
     se.add_argument("--cards-dir", default="data/subject-artifacts")
-    se.add_argument("--output", required=True)
+    se.add_argument("--to", required=True, dest="artifact_path")
     sd = subject_sub.add_parser("delete", help="delete a derived subject artifact")
     sd.add_argument("--participant", required=True)
     sd.add_argument("--cards-dir", default="data/subject-artifacts")
@@ -264,9 +264,9 @@ def execute(args: argparse.Namespace) -> Any:
             return json.loads(path.read_text(encoding='utf-8'))
         if profile_cmd == 'export':
             artifact = profiler.build_artifact(args.participant, provider=provider)
-            Path(args.output).parent.mkdir(parents=True, exist_ok=True)
-            Path(args.output).write_text(artifact.model_dump_json(indent=2), encoding='utf-8')
-            return {'status': 'ok', 'written': str(Path(args.output).resolve())}
+            Path(args.artifact_path).parent.mkdir(parents=True, exist_ok=True)
+            Path(args.artifact_path).write_text(artifact.model_dump_json(indent=2), encoding='utf-8')
+            return {'status': 'ok', 'written': str(Path(args.artifact_path).resolve())}
         if profile_cmd == 'delete':
             return {'deleted': profiler.delete_artifact(args.participant, args.cards_dir)}
         raise CliError(f'unknown profile command: {profile_cmd}', EXIT_USAGE)
@@ -327,9 +327,9 @@ def execute(args: argparse.Namespace) -> Any:
             artifact_path.write_text(artifact.model_dump_json(indent=2), encoding='utf-8')
             return {'status': 'ok', 'review_state': artifact.review_state, 'written': str(artifact_path.resolve())}
         if subject_cmd == 'export':
-            Path(args.output).parent.mkdir(parents=True, exist_ok=True)
-            Path(args.output).write_text(artifact.model_dump_json(indent=2), encoding='utf-8')
-            return {'status': 'ok', 'written': str(Path(args.output).resolve())}
+            Path(args.artifact_path).parent.mkdir(parents=True, exist_ok=True)
+            Path(args.artifact_path).write_text(artifact.model_dump_json(indent=2), encoding='utf-8')
+            return {'status': 'ok', 'written': str(Path(args.artifact_path).resolve())}
         if subject_cmd == 'delete':
             artifact_path.unlink()
             return {'deleted': 1, 'participant': args.participant}

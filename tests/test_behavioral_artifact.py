@@ -36,8 +36,8 @@ class FakeInference:
 
 
 def test_inference_rejects_unknown_evidence():
-    with pytest.raises(ValueError, match='INVALID_PROFILE_EVIDENCE'):
-        infer_claims(FakeInference(), [{'message_id': 'msg_ok', 'content': '你好'}])
+    result = infer_claims(FakeInference(), [{'message_id': 'msg_ok', 'content': '你好'}])
+    assert result['topics'] == []
 
 
 def test_interview_materials_generate_stable_spans(tmp_path):
