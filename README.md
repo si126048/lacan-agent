@@ -235,6 +235,18 @@ uvicorn lacan_agent.api:app --host 127.0.0.1 --port 8000
 
 API 仅绑定本机地址，支持 `.txt`、`.md` 和 `.pdf` 文件上传，单文件大小受 `LACAN_MAX_UPLOAD_BYTES` 限制。
 
+**端口配置**：默认使用 8000 端口。如果端口被占用，可以指定其他端口：
+
+```bash
+# 使用 8001 端口
+uvicorn lacan_agent.api:app --host 127.0.0.1 --port 8001
+
+# 使用 5000 端口
+uvicorn lacan_agent.api:app --host 127.0.0.1 --port 5000
+```
+
+后续 API 调用示例均使用 8000 端口，如果使用了其他端口，请相应替换 URL 中的端口号。
+
 ### API Key 认证
 
 通过环境变量 `LACAN_API_KEY` 启用 API Key 认证：
