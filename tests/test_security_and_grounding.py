@@ -2,10 +2,10 @@ from pathlib import Path
 
 import pytest
 
-from lacan_agent.db import Store
-from lacan_agent.models import ConsentScope, Participant, Project
-from lacan_agent.rag import ingest, search
-from lacan_agent.workflow import Workflow
+from hermeneut.db import Store
+from hermeneut.models import ConsentScope, Participant, Project
+from hermeneut.rag import ingest, search
+from hermeneut.workflow import Workflow
 
 
 def _setup(tmp_path: Path):

@@ -1,6 +1,6 @@
-# Lacan-Agent
+# Hermeneut-Agent
 
-**基于拉康话语理论的主体结构分析工具**
+**对抗性多视角话语分析工具**
 
 ---
 
@@ -19,7 +19,7 @@
 
 ## 概述
 
-Lacan-Agent 是一个本地研究工具，用于把聊天、访谈、写作样本和研究观察整理成可追溯的主体结构画像。v2.0 新增对抗性多视角分析（拉康 vs 德勒兹）和 PageIndex 文档系统，支持长篇精神分析文本的处理与引文验证。
+Hermeneut 是一个本地研究工具，用于把聊天、访谈、写作样本和研究观察整理成可追溯的主体结构画像。v2.0 新增对抗性多视角分析（拉康 vs 德勒兹）和 PageIndex 文档系统，支持长篇精神分析文本的处理与引文验证。
 
 项目关注的是证据化的经验分析，不是临床诊断，也不会把语言口癖直接等同于人格。每个结构候选都必须引用材料中的证据 span，默认状态为 `candidate`，只有人工审核通过后才能进入生成策略。
 
@@ -95,12 +95,12 @@ pip install -e ".[dev]"
 ### 传统证据分析
 
 ```bash
-lacan-agent init --project demo
-lacan-agent add-participant --project demo --id A --consent consent.json
-lacan-agent add-source --project demo --participant A --file story.txt
-lacan-agent analyze --project demo --participant A --source story.txt --mock
-lacan-agent review --run <run_id> --decision approve
-lacan-agent export --run <run_id> --pretty
+hermeneut init --project demo
+hermeneut add-participant --project demo --id A --consent consent.json
+hermeneut add-source --project demo --participant A --file story.txt
+hermeneut analyze --project demo --participant A --source story.txt --mock
+hermeneut review --run <run_id> --decision approve
+hermeneut export --run <run_id> --pretty
 ```
 
 ### 多源主体结构画像
@@ -155,11 +155,11 @@ lacan-agent export --run <run_id> --pretty
 构建和查看：
 
 ```bash
-lacan-agent subject build --participant A --sources sources.json --mode full --batch-size 80 --with-relations --cards-dir data/subject-artifacts
-lacan-agent subject show --participant A --cards-dir data/subject-artifacts
-lacan-agent subject inspect-motifs --participant A --cards-dir data/subject-artifacts
-lacan-agent subject inspect-relations --participant A --cards-dir data/subject-artifacts
-lacan-agent subject show-batch-failures --participant A --cards-dir data/subject-artifacts
+hermeneut subject build --participant A --sources sources.json --mode full --batch-size 80 --with-relations --cards-dir data/subject-artifacts
+hermeneut subject show --participant A --cards-dir data/subject-artifacts
+hermeneut subject inspect-motifs --participant A --cards-dir data/subject-artifacts
+hermeneut subject inspect-relations --participant A --cards-dir data/subject-artifacts
+hermeneut subject show-batch-failures --participant A --cards-dir data/subject-artifacts
 ```
 
 主体分析按重叠窗口覆盖全部消息。原文和规范化文本同时保留在本地处理中，戏仿、谐音、重复标点和模板变体只作为候选；单次表达不会自动进入稳定语言特征。关系层先生成有向互动事件，再由 Qwen 复核关系候选，所有候选都保留 span、时间和场景证据。可用 `--aliases aliases.json` 提供人工确认的参与者别名表，未确认别名不会自动合并。
@@ -168,7 +168,7 @@ Qwen 结构抽取需要设置环境变量：
 
 ```powershell
 $env:DASHSCOPE_API_KEY = "sk-your-key"
-lacan-agent subject build --participant A --sources sources.json --cards-dir data/subject-artifacts
+hermeneut subject build --participant A --sources sources.json --cards-dir data/subject-artifacts
 ```
 
 Qwen 失败时仍会生成观察层画像。结构候选必须人工审核：
@@ -188,8 +188,8 @@ Qwen 失败时仍会生成观察层画像。结构候选必须人工审核：
 ```
 
 ```bash
-lacan-agent subject review --participant A --input review.json --cards-dir data/subject-artifacts
-lacan-agent subject export --participant A --cards-dir data/subject-artifacts --output subject.json
+hermeneut subject review --participant A --input review.json --cards-dir data/subject-artifacts
+hermeneut subject export --participant A --cards-dir data/subject-artifacts --output subject.json
 ```
 
 ### 交互式界面
@@ -230,22 +230,22 @@ Phase 4 — 报告        可选：生成自然语言综合报告
 
 ```bash
 # 列出可用视角
-lacan-agent perspectives
+hermeneut perspectives
 
 # 拉康-德勒兹对抗分析
-lacan-agent dialectical-analyze \
+hermeneut dialectical-analyze \
   --perspectives lacan,deleuze \
   --participant A --project demo --source story.txt --mock
 
 # 生成综合报告
-lacan-agent dialectical-analyze \
+hermeneut dialectical-analyze \
   --perspectives lacan,deleuze \
   --participant A --project demo --source story.txt --mock --report
 ```
 
 ### 扩展新视角
 
-在 `lacan_agent/perspectives/` 目录下放置新的 JSON 配置文件即可自动注册：
+在 `hermeneut/perspectives/` 目录下放置新的 JSON 配置文件即可自动注册：
 
 ```json
 {
@@ -272,8 +272,8 @@ PageIndex 文档系统（移植自 MISAKA-Agent）支持长篇精神分析文本
 
 ```bash
 # 导入文档（自动检测格式、提取页面、检测大纲）
-lacan-agent doc-ingest --path book.pdf --project demo
-lacan-agent doc-ingest --path seminar.txt --project demo --title "研讨班 XI"
+hermeneut doc-ingest --path book.pdf --project demo
+hermeneut doc-ingest --path seminar.txt --project demo --title "研讨班 XI"
 
 # 支持格式：txt, md, pdf, html, epub, docx, xlsx, pptx
 ```
@@ -282,14 +282,14 @@ lacan-agent doc-ingest --path seminar.txt --project demo --title "研讨班 XI"
 
 ```bash
 # 查看文档大纲
-lacan-agent doc-outline --doc-id abc123def456
+hermeneut doc-outline --doc-id abc123def456
 
 # 全文检索
-lacan-agent doc-search --query "objet petit a" --project demo
-lacan-agent doc-search --query "能指链" --doc-id abc123def456
+hermeneut doc-search --query "objet petit a" --project demo
+hermeneut doc-search --query "能指链" --doc-id abc123def456
 
 # 验证引文
-lacan-agent doc-verify --doc-id abc123def456 --quote "欲望是他者的欲望" --page 47
+hermeneut doc-verify --doc-id abc123def456 --quote "欲望是他者的欲望" --page 47
 ```
 
 ### 存储架构
@@ -309,7 +309,7 @@ lacan-agent doc-verify --doc-id abc123def456 --quote "欲望是他者的欲望" 
 ### 启动服务
 
 ```bash
-uvicorn lacan_agent.api:app --host 127.0.0.1 --port 8000
+uvicorn hermeneut.api:app --host 127.0.0.1 --port 8000
 ```
 
 API 仅绑定本机地址，支持 `.txt`、`.md` 和 `.pdf` 文件上传，单文件大小受 `LACAN_MAX_UPLOAD_BYTES` 限制。
@@ -318,10 +318,10 @@ API 仅绑定本机地址，支持 `.txt`、`.md` 和 `.pdf` 文件上传，单�
 
 ```bash
 # 使用 8001 端口
-uvicorn lacan_agent.api:app --host 127.0.0.1 --port 8001
+uvicorn hermeneut.api:app --host 127.0.0.1 --port 8001
 
 # 使用 5000 端口
-uvicorn lacan_agent.api:app --host 127.0.0.1 --port 5000
+uvicorn hermeneut.api:app --host 127.0.0.1 --port 5000
 ```
 
 后续 API 调用示例均使用 8000 端口，如果使用了其他端口，请相应替换 URL 中的端口号。
@@ -333,7 +333,7 @@ uvicorn lacan_agent.api:app --host 127.0.0.1 --port 5000
 ```bash
 # 启用认证
 export LACAN_API_KEY=$(openssl rand -hex 32)
-uvicorn lacan_agent.api:app --host 127.0.0.1 --port 8000
+uvicorn hermeneut.api:app --host 127.0.0.1 --port 8000
 ```
 
 **本地开发**：不设置 `LACAN_API_KEY` 时，API 无需认证，方便快速调试。
@@ -530,6 +530,6 @@ MIT
 
 <div align="center">
 
-**Lacan-Agent** · 基于证据的主体结构分析
+**Hermeneut-Agent** · 基于证据的主体结构分析
 
 </div>

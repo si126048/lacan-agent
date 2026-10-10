@@ -1,4 +1,4 @@
-"""Command line interface for Lacan-Agent.
+"""Command line interface for Hermeneut.
 
 The CLI is deliberately dependency-light so the complete Mock workflow works
 without a web server or an API key.
@@ -72,11 +72,11 @@ def _source_for(store: Store, project_id: str, participant_id: str, source: str)
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="lacan-agent",
-        description="Evidence-constrained Lacan-Agent research workflow (local Mock mode).",
+        prog="hermeneut-agent",
+        description="Adversarial multi-perspective discourse analysis toolkit.",
         epilog="常用流程：init → add-participant → add-source → analyze → review → export；主体画像使用 subject build。",
     )
-    parser.add_argument("--version", action="version", version="lacan-agent 1.0.0")
+    parser.add_argument("--version", action="version", version="hermeneut-agent 2.0.0")
     parser.add_argument("--db", default=os.getenv("LACAN_DB_PATH", "./data/lacan.db"), help="SQLite path")
     parser.add_argument("--pretty", action="store_true", help="pretty-print JSON output")
     parser.add_argument("--output", help="write the command result to a JSON file")

@@ -1,4 +1,4 @@
-"""Integrator: statistical extraction + lacan-agent structure -> distillation cards."""
+"""Integrator: statistical extraction + hermeneut structure -> distillation cards."""
 
 from __future__ import annotations
 

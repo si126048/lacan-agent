@@ -3,11 +3,11 @@ from pathlib import Path
 
 import pytest
 
-from lacan_agent.behavioral import BehavioralProfiler, ConsentPolicy, SubjectProfiler
-from lacan_agent.behavioral.chat_parser import load_participant_messages, load_normalized_messages
-from lacan_agent.behavioral.config import load_participant_manifest
-from lacan_agent.behavioral.inference import infer_claims
-from lacan_agent.behavioral.materials import load_materials
+from hermeneut.behavioral import BehavioralProfiler, ConsentPolicy, SubjectProfiler
+from hermeneut.behavioral.chat_parser import load_participant_messages, load_normalized_messages
+from hermeneut.behavioral.config import load_participant_manifest
+from hermeneut.behavioral.inference import infer_claims
+from hermeneut.behavioral.materials import load_materials
 
 
 def test_profile_artifact_has_manifest_and_no_raw_samples(tmp_path):

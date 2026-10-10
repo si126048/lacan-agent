@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import pytest
 
-from lacan_agent.topology.borromean import (
+from hermeneut.topology.borromean import (
     Register, RegisterCoherenceMonitor, UnknottingEvent, RSI_MARKERS,
 )
-from lacan_agent.topology.mathemes import (
+from hermeneut.topology.mathemes import (
     Matheme, MathemeKind, MathemeRelation, MATHEME_DEFAULT_REGISTERS,
 )
-from lacan_agent.topology.discourses import (
+from hermeneut.topology.discourses import (
     Discourse, TermKind,
     MASTER, UNIVERSITY, HYSTERIC, ANALYST,
     DISCOURSE_ROTATION, identify_discourse,

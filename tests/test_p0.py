@@ -1,9 +1,9 @@
 import asyncio
 from pathlib import Path
-from lacan_agent.db import Store
-from lacan_agent.models import *
-from lacan_agent.rag import ingest, validate_span
-from lacan_agent.workflow import Workflow
+from hermeneut.db import Store
+from hermeneut.models import *
+from hermeneut.rag import ingest, validate_span
+from hermeneut.workflow import Workflow
 
 BASE=Path('.test-tmp')
 def setup():

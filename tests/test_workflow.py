@@ -1,12 +1,12 @@
 import uuid
 from pathlib import Path
-from lacan_agent.db import Store
-from lacan_agent.models import (
+from hermeneut.db import Store
+from hermeneut.models import (
     ConsentScope, Participant, Project, ReviewDecision, ReviewRequest,
     RunState, ReviewStatus,
 )
-from lacan_agent.rag import ingest
-from lacan_agent.workflow import Workflow
+from hermeneut.rag import ingest
+from hermeneut.workflow import Workflow
 
 
 def _setup(tmp_path):

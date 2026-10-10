@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from lacan_agent.annotation import CulturalAnnotator, load_gazetteer, GazetteerEntry
-from lacan_agent.models import EvidenceSpan
+from hermeneut.annotation import CulturalAnnotator, load_gazetteer, GazetteerEntry
+from hermeneut.models import EvidenceSpan
 
 
 def _span(sid: str, text: str) -> EvidenceSpan:

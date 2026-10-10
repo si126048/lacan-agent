@@ -1,12 +1,12 @@
 import uuid
-from lacan_agent.db import Store
-from lacan_agent.models import (
+from hermeneut.db import Store
+from hermeneut.models import (
     ConsentScope, Participant, Project, RunState,
 )
-from lacan_agent.rag import ingest
-from lacan_agent.llm import FakeProvider
-from lacan_agent.dialectical import DialecticalWorkflow
-from lacan_agent.perspectives.registry import PerspectiveRegistry
+from hermeneut.rag import ingest
+from hermeneut.llm import FakeProvider
+from hermeneut.dialectical import DialecticalWorkflow
+from hermeneut.perspectives.registry import PerspectiveRegistry
 
 
 def _setup(tmp_path):

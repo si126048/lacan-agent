@@ -1,6 +1,6 @@
 import sqlite3
 from pathlib import Path
-from lacan_agent.documents.store import DocumentStore
+from hermeneut.documents.store import DocumentStore
 
 
 def _make_store(tmp_path):

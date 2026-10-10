@@ -1,7 +1,7 @@
 import json
-from lacan_agent.models import PerspectiveConfig
-from lacan_agent.perspectives.registry import PerspectiveRegistry, get_perspective, list_perspectives
-from lacan_agent.perspectives.prompts import build_perspective_prompts
+from hermeneut.models import PerspectiveConfig
+from hermeneut.perspectives.registry import PerspectiveRegistry, get_perspective, list_perspectives
+from hermeneut.perspectives.prompts import build_perspective_prompts
 
 
 def test_registry_loads_builtins():

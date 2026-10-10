@@ -29,7 +29,7 @@ def P(text, style="CNBody"):
 
 def footer(canvas, doc):
     canvas.saveState(); canvas.setFont("SimHei", 7); canvas.setFillColor(colors.HexColor("#667085"))
-    canvas.drawString(18*mm, 10*mm, "Lacan-Agent · Archive Analysis Record · Mock workflow")
+    canvas.drawString(18*mm, 10*mm, "Hermeneut · Archive Analysis Record · Mock workflow")
     canvas.drawRightString(192*mm, 10*mm, f"第 {doc.page} 页")
     canvas.restoreState()
 
@@ -39,9 +39,9 @@ def status_label(s):
 completed = [x for x in data if x["state"] == "NEEDS_HUMAN_REVIEW"]
 pending = [x for x in data if x["state"] != "NEEDS_HUMAN_REVIEW"]
 
-doc = SimpleDocTemplate(str(out), pagesize=A4, rightMargin=18*mm, leftMargin=18*mm, topMargin=17*mm, bottomMargin=17*mm, title="Archive Analysis Record", author="Lacan-Agent")
+doc = SimpleDocTemplate(str(out), pagesize=A4, rightMargin=18*mm, leftMargin=18*mm, topMargin=17*mm, bottomMargin=17*mm, title="Archive Analysis Record", author="Hermeneut")
 story=[]
-story += [P("聊天文本分析记录", "CNTitle"), P("Lacan-Agent P0 本地 Mock 工作流导出", "CNH2"), Spacer(1, 3*mm)]
+story += [P("聊天文本分析记录", "CNTitle"), P("Hermeneut P0 本地 Mock 工作流导出", "CNH2"), Spacer(1, 3*mm)]
 story += [P("生成日期：2026-10-09"), P("数据范围：用户提供的六份聊天文本；本报告只导出当前数据库中已经生成的分析记录。", "CNBody")]
 summary = [[P("指标", "CNSmall"), P("数量", "CNSmall"), P("说明", "CNSmall")], [P("已完成分析", "CNSmall"), P(str(len(completed)), "CNSmall"), P("运行到 NEEDS_HUMAN_REVIEW，尚未人工批准", "CNSmall")], [P("部分完成", "CNSmall"), P(str(len(pending)), "CNSmall"), P("已导入但未形成完整 Analysis Packet", "CNSmall")], [P("已批准导出", "CNSmall"), P("0", "CNSmall"), P("当前没有生成可执行叙事算子", "CNSmall")]]
 t=Table(summary, colWidths=[35*mm, 18*mm, 112*mm]); t.setStyle(TableStyle([("BACKGROUND",(0,0),(-1,0),colors.HexColor("#DCEAF4")),("GRID",(0,0),(-1,-1),0.35,colors.HexColor("#B8C7D9")),("VALIGN",(0,0),(-1,-1),"TOP"),("LEFTPADDING",(0,0),(-1,-1),5),("RIGHTPADDING",(0,0),(-1,-1),5)])); story += [t]

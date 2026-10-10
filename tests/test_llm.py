@@ -1,6 +1,6 @@
 import pytest
-from lacan_agent.llm import FakeProvider, QwenProvider, EVIDENCE_SYSTEM, INTERPRETER_SYSTEM, CRITIC_SYSTEM
-from lacan_agent.models import Observation, Hypothesis
+from hermeneut.llm import FakeProvider, QwenProvider, EVIDENCE_SYSTEM, INTERPRETER_SYSTEM, CRITIC_SYSTEM
+from hermeneut.models import Observation, Hypothesis
 
 
 def test_fake_provider_evidence_stage():

@@ -1,8 +1,8 @@
 import json
 import uuid
 from pathlib import Path
-from lacan_agent.db import Store, checksum, new_id
-from lacan_agent.models import (
+from hermeneut.db import Store, checksum, new_id
+from hermeneut.models import (
     ConsentScope, Participant, Project, SourceDocument,
     EvidenceSpan, AnalysisRun, RunState,
 )

@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import pytest
 
-from lacan_agent.fuzzy import (
+from hermeneut.fuzzy import (
     FuzzyGrounding, MembershipFunction, aggregate_grounding,
     HallucinationGuard, HallucinationReport,
     t_norm, t_conorm, fuzzy_complement, alpha_cut,
 )
-from lacan_agent.models import Hypothesis, EvidenceSpan, Observation
+from hermeneut.models import Hypothesis, EvidenceSpan, Observation
 
 
 def _span(sid: str, text: str) -> EvidenceSpan:

@@ -1,11 +1,11 @@
 import pytest
 from pydantic import ValidationError
-from lacan_agent.models import (
+from hermeneut.models import (
     ConsentScope, EvidenceSpan, RunState, ReviewStatus, ReviewDecision,
     Project, Participant, SourceDocument, Observation, Hypothesis,
     AnalysisPacket, AnalysisRun, ErrorBody, ErrorResponse,
 )
-from lacan_agent.db import checksum
+from hermeneut.db import checksum
 
 
 def test_consent_defaults():

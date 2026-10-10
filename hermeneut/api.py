@@ -11,7 +11,7 @@ from .models import *
 from .rag import ingest, search
 from .workflow import Workflow
 from .concurrent import ConcurrentAnalyzer, AnalysisTask
-app=FastAPI(title='Lacan-Agent',version='1.0.0')
+app=FastAPI(title='Hermeneut-Agent',version='2.0.0')
 
 API_KEY = os.getenv("LACAN_API_KEY")
 security = HTTPBearer(auto_error=False)

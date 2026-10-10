@@ -1,13 +1,13 @@
 [project]
-name = "lacan-agent"
-version = "1.0.0"
-description = "Multi-source subject structure analysis and controlled persona research tool"
+name = "hermeneut-agent"
+version = "2.0.0"
+description = "Adversarial multi-perspective discourse analysis toolkit"
 requires-python = ">=3.12"
 dependencies = ["fastapi>=0.115", "uvicorn>=0.34", "pydantic>=2.10", "pypdf>=5.0", "httpx>=0.28", "openai>=1.0", "aiosqlite>=0.20", "python-multipart>=0.0.9"]
 [project.optional-dependencies]
 dev = ["pytest>=8", "pytest-asyncio>=1", "ruff>=0.5"]
 [project.scripts]
-lacan-agent = "lacan_agent.cli:main"
+hermeneut-agent = "hermeneut.cli:main"
 [build-system]
 requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
@@ -17,3 +17,5 @@ tmp_path_retention_policy = "none"
 addopts = "--basetemp=.test-tmp"
 [tool.ruff]
 line-length = 100
+[tool.hatch.build.targets.wheel]
+packages = ["hermeneut"]

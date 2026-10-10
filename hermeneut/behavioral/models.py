@@ -68,7 +68,7 @@ class BehavioralProfile(BaseModel):
 
 
 class StructuralSummary(BaseModel):
-    """Summary from lacan-agent structural analysis."""
+    """Summary from hermeneut structural analysis."""
 
     discourse_trajectory: list[str] = Field(default_factory=list)
     dominant_discourse: str = ""
