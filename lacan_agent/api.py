@@ -2,9 +2,10 @@ from __future__ import annotations
 import os, tempfile, uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 from .db import Store
 from .models import *
@@ -23,6 +24,19 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+API_KEY = os.getenv("LACAN_API_KEY")
+security = HTTPBearer(auto_error=False)
+
+async def verify_api_key(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    if not API_KEY:
+        return
+    if not credentials or credentials.credentials != API_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing API key",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 store=Store(); flow=Workflow(store)
 class ProjectIn(BaseModel): id:str; owner_id:str='local-user'; policy_version:str='1.0'
@@ -74,57 +88,57 @@ async def perm(_,e): return err(403,str(e), '授权或对象访问被拒绝')
 async def missing(_,e): return err(404,str(e), '资源不存在')
 @app.get('/health')
 def health(): return {'status':'ok'}
-@app.post('/api/v1/projects',status_code=201)
+@app.post('/api/v1/projects',status_code=201,dependencies=[Depends(verify_api_key)])
 def project(x:ProjectIn):
     if store.get_project(x.id): raise HTTPException(400,'PROJECT_EXISTS')
     return store.create_project(Project(**x.model_dump())).model_dump()
-@app.post('/api/v1/theory/sources',status_code=202)
+@app.post('/api/v1/theory/sources',status_code=202,dependencies=[Depends(verify_api_key)])
 def theory(project_id: str = Form(...), file: UploadFile = File(...)):
     if not store.get_project(project_id): raise HTTPException(404,'PROJECT_NOT_FOUND')
     try:return _ingest_upload(file, project_id).model_dump(exclude={'text'})
     except ValueError as e: raise HTTPException(422,str(e))
-@app.get('/api/v1/theory/search')
+@app.get('/api/v1/theory/search',dependencies=[Depends(verify_api_key)])
 def theory_search(project_id:str,q:str,limit:int=5): return {'items':search(store,q,min(limit,5))}
-@app.post('/api/v1/participants',status_code=201)
+@app.post('/api/v1/participants',status_code=201,dependencies=[Depends(verify_api_key)])
 def participant(x:ParticipantIn):
     if not store.get_project(x.project_id):raise HTTPException(404,'PROJECT_NOT_FOUND')
     return store.put_participant(Participant(id=x.id,project_id=x.project_id,pseudonym=x.pseudonym or x.id,consent_scope=x.consent_scope)).model_dump()
-@app.post('/api/v1/participants/{pid}/sources',status_code=202)
+@app.post('/api/v1/participants/{pid}/sources',status_code=202,dependencies=[Depends(verify_api_key)])
 def source(pid:str, project_id: str = Form(...), file: UploadFile = File(...)):
     p=store.get_participant(project_id,pid)
     if not p:raise HTTPException(404,'PARTICIPANT_NOT_FOUND')
     if p.withdrawn_at or not _consent_active(p.consent_scope):raise HTTPException(403,'CONSENT_REQUIRED')
     try:return _ingest_upload(file, project_id, pid, p.consent_scope).model_dump(exclude={'text'})
     except ValueError as e: raise HTTPException(422,str(e))
-@app.post('/api/v1/analysis-runs',status_code=202)
+@app.post('/api/v1/analysis-runs',status_code=202,dependencies=[Depends(verify_api_key)])
 def analysis(x:RunIn):
     try:r=flow.run(x.project_id,x.participant_id,x.source_ids,x.idempotency_key); return {'run_id':r.id,'state':r.state}
     except ValueError as e: raise HTTPException(422,str(e))
-@app.get('/api/v1/analysis-runs/{rid}')
+@app.get('/api/v1/analysis-runs/{rid}',dependencies=[Depends(verify_api_key)])
 def run(rid):
     result = store.get_run(rid)
     if not result: raise HTTPException(404, 'RUN_NOT_FOUND')
     return result.model_dump(mode='json')
-@app.post('/api/v1/analysis-runs/{rid}/reviews')
+@app.post('/api/v1/analysis-runs/{rid}/reviews',dependencies=[Depends(verify_api_key)])
 def review(rid:str,x:ReviewRequest):return flow.review(rid,x).model_dump(mode='json')
-@app.get('/api/v1/analysis-runs/{rid}/packet')
+@app.get('/api/v1/analysis-runs/{rid}/packet',dependencies=[Depends(verify_api_key)])
 def packet(rid):
     r=store.get_run(rid)
     if not r: raise HTTPException(404, 'RUN_NOT_FOUND')
     if not r.packet or r.state not in (RunState.APPROVED,RunState.COMPILED): raise HTTPException(409, 'NOT_APPROVED')
     return r.packet.model_dump(mode='json')
-@app.get('/api/v1/analysis-runs/{rid}/graph')
+@app.get('/api/v1/analysis-runs/{rid}/graph',dependencies=[Depends(verify_api_key)])
 def graph(rid):
     try:return flow.export(rid)['graph']
     except PermissionError as e: raise HTTPException(409, str(e))
-@app.post('/api/v1/participants/{pid}/withdraw',status_code=202)
+@app.post('/api/v1/participants/{pid}/withdraw',status_code=202,dependencies=[Depends(verify_api_key)])
 def withdraw(pid:str,project_id:str):
     p=store.withdraw(project_id,pid)
     if not p:raise HTTPException(404,'PARTICIPANT_NOT_FOUND')
     return {'participant_id':pid,'state':'WITHDRAWAL_REQUESTED'}
 class BatchTaskIn(BaseModel): project_id:str; participant_id:str; source_ids:list[str]; idempotency_key:str
 class BatchIn(BaseModel): tasks:list[BatchTaskIn]; max_concurrent:int=Field(default=4, ge=1, le=16)
-@app.post('/api/v1/analysis-runs/batch',status_code=202)
+@app.post('/api/v1/analysis-runs/batch',status_code=202,dependencies=[Depends(verify_api_key)])
 async def batch_analysis(x:BatchIn):
     analyzer=ConcurrentAnalyzer(store,max_concurrent=x.max_concurrent)
     atasks=[AnalysisTask(project_id=t.project_id,participant_id=t.participant_id,source_ids=t.source_ids,idempotency_key=t.idempotency_key) for t in x.tasks]
