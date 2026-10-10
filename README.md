@@ -19,7 +19,7 @@
 
 ## 概述
 
-Lacan-Agent 是一个本地研究工具，用于把聊天、访谈、写作样本和研究观察整理成可追溯的主体结构画像，为后续受控 PersonaAgent 和五人故事接龙提供输入。
+Lacan-Agent 是一个本地研究工具，用于把聊天、访谈、写作样本和研究观察整理成可追溯的主体结构画像。
 
 项目关注的是证据化的经验分析，不是临床诊断，也不会把语言口癖直接等同于人格。每个结构候选都必须引用材料中的证据 span，默认状态为 `candidate`，只有人工审核通过后才能进入生成策略。
 
@@ -57,8 +57,6 @@ Lacan-Agent 是一个本地研究工具，用于把聊天、访谈、写作样�
 | **人工审核** | CLI 和 JSON 审核文件驱动的人工审核流程 |
 | **同意管理** | 参与者同意、过期、撤回和派生数据清理 |
 | **拓扑导出** | 旧版分析流水线的证据校验、文化注释、模糊接地和拓扑导出 |
-
-> **注意**：五人故事接龙调度器、共享故事记忆和五个 PersonaAgent 的运行时不属于 1.0，本版本提供的是它们所需的主体结构输入层。
 
 ---
 
@@ -177,13 +175,6 @@ Qwen 失败时仍会生成观察层画像。结构候选必须人工审核：
 ```bash
 lacan-agent subject review --participant A --input review.json --cards-dir data/subject-artifacts
 lacan-agent subject export --participant A --cards-dir data/subject-artifacts --output subject.json
-```
-
-### 五人快捷统计画像
-
-```bash
-lacan-agent profile build --all --texts-dir data/participant_texts --cards-dir data/profile-cards
-lacan-agent profile show --participant 灯 --cards-dir data/profile-cards
 ```
 
 ### 交互式界面
@@ -386,7 +377,7 @@ pytest tests/ -q
 
 ## 08 当前边界
 
-1.0 只提供多源主体结构分析和审核后的画像输入层。五个独立 PersonaAgent、轮流调度、共享故事状态、故事接龙评测和长期记忆将在后续版本实现。
+1.0 提供多源主体结构分析和审核后的画像输入层，为后续生成策略提供基础。
 
 ---
 
