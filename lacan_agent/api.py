@@ -3,6 +3,7 @@ import os, tempfile, uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from .db import Store
@@ -11,6 +12,15 @@ from .rag import ingest, search
 from .workflow import Workflow
 from .concurrent import ConcurrentAnalyzer, AnalysisTask
 app=FastAPI(title='Lacan-Agent',version='1.0.0')
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 store=Store(); flow=Workflow(store)
 class ProjectIn(BaseModel): id:str; owner_id:str='local-user'; policy_version:str='1.0'
 class ParticipantIn(BaseModel): id:str; project_id:str; pseudonym:str|None=None; consent_scope:ConsentScope=ConsentScope()

@@ -227,13 +227,21 @@ lacan-agent profile show --participant 灯 --cards-dir data/profile-cards
 
 ## API 服务
 
-启动 API 服务：
+### 启动服务
+
+**本地开发**（仅本机访问）：
 
 ```bash
 uvicorn lacan_agent.api:app --host 127.0.0.1 --port 8000
 ```
 
-或使用 Docker：
+**允许外部访问**（局域网或公网部署）：
+
+```bash
+uvicorn lacan_agent.api:app --host 0.0.0.0 --port 8000
+```
+
+**Docker 部署**：
 
 ```bash
 docker build -t lacan-agent .
@@ -241,6 +249,87 @@ docker run -p 8000:8000 -v $(pwd)/data:/data lacan-agent
 ```
 
 API 支持 `.txt`、`.md` 和 `.pdf` 文件上传，单文件大小受 `LACAN_MAX_UPLOAD_BYTES` 限制。
+
+### CORS 配置
+
+API 默认启用 CORS（跨域资源共享），允许所有来源访问。生产环境建议通过环境变量限制允许的域名：
+
+```python
+allow_origins=os.getenv("LACAN_CORS_ORIGINS", "*").split(",")
+```
+
+### API 调用示例
+
+**创建项目**：
+
+```bash
+curl -X POST http://localhost:8000/api/v1/projects \
+  -H "Content-Type: application/json" \
+  -d '{"id": "demo", "owner_id": "researcher"}'
+```
+
+**添加参与者**：
+
+```bash
+curl -X POST http://localhost:8000/api/v1/participants \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "A",
+    "project_id": "demo",
+    "pseudonym": "Participant A",
+    "consent_scope": {
+      "research_analysis": true,
+      "generation": false
+    }
+  }'
+```
+
+**上传材料**：
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/participants/A/sources" \
+  -F "project_id=demo" \
+  -F "file=@story.txt"
+```
+
+**运行分析**：
+
+```bash
+curl -X POST http://localhost:8000/api/v1/analysis-runs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "project_id": "demo",
+    "participant_id": "A",
+    "source_ids": ["source_1"],
+    "mode": "evidence_first",
+    "idempotency_key": "run_001"
+  }'
+```
+
+**查询状态**：
+
+```bash
+curl http://localhost:8000/api/v1/analysis-runs/run_001
+```
+
+**提交审核**：
+
+```bash
+curl -X POST http://localhost:8000/api/v1/analysis-runs/run_001/reviews \
+  -H "Content-Type: application/json" \
+  -d '{
+    "reviewer_id": "researcher",
+    "decision": "approve",
+    "reason": "Evidence supports all claims"
+  }'
+```
+
+**导出结果**：
+
+```bash
+curl http://localhost:8000/api/v1/analysis-runs/run_001/packet > result.json
+curl http://localhost:8000/api/v1/analysis-runs/run_001/graph > graph.json
+```
 
 ### 主要端点
 
