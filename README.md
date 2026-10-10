@@ -97,9 +97,14 @@ lacan-agent export --run <run_id> --pretty
 构建和查看：
 
 ```bash
-lacan-agent subject build --participant A --sources sources.json --cards-dir data/subject-artifacts
+lacan-agent subject build --participant A --sources sources.json --mode full --batch-size 80 --with-relations --cards-dir data/subject-artifacts
 lacan-agent subject show --participant A --cards-dir data/subject-artifacts
+lacan-agent subject inspect-motifs --participant A --cards-dir data/subject-artifacts
+lacan-agent subject inspect-relations --participant A --cards-dir data/subject-artifacts
+lacan-agent subject show-batch-failures --participant A --cards-dir data/subject-artifacts
 ```
+
+主体分析按重叠窗口覆盖全部消息。原文和规范化文本同时保留在本地处理中，戏仿、谐音、重复标点和模板变体只作为候选；单次表达不会自动进入稳定语言特征。关系层先生成有向互动事件，再由 Qwen 复核关系候选，所有候选都保留 span、时间和场景证据。可用 `--aliases aliases.json` 提供人工确认的参与者别名表，未确认别名不会自动合并。
 
 Qwen 结构抽取需要设置环境变量：
 

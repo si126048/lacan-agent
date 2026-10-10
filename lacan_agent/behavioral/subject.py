@@ -3,14 +3,19 @@
 from __future__ import annotations
 
 from collections import Counter
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .inference import infer_structural_claims
+from .inference import infer_structural_claims_full, infer_relationship_claims
 from .materials import load_materials, validate_span_references
 from .models import (
     ConsentPolicy, CrossSourceFinding, ProfileArtifact, StructuralClaim,
+)
+from .text_analysis import (
+    detect_transform_candidates, extract_interaction_events,
+    build_relation_graph, stable_expression_candidates,
 )
 
 
@@ -23,7 +28,8 @@ class SubjectProfiler:
             consent or {'profile_analysis': True}
         )
 
-    def build(self, participant_id: str, provider=None) -> ProfileArtifact:
+    def build(self, participant_id: str, provider=None, *, with_relations: bool = True,
+              batch_size: int = 80, aliases: dict[str, list[str]] | None = None) -> ProfileArtifact:
         if not self.consent.is_active():
             raise PermissionError('PROFILE_CONSENT_REQUIRED')
         sources, spans = load_materials(self.sources_config, root=self.root, participant_id=participant_id)
@@ -32,6 +38,19 @@ class SubjectProfiler:
             if scope.get('profile_analysis') is False or scope.get('withdrawn_at'):
                 raise PermissionError(f'SOURCE_CONSENT_REQUIRED:{source.source_id}')
         source_profiles = self._source_profiles(sources, spans)
+        messages = [{
+            'message_id': s.message_id or s.span_id.replace('span_', 'msg_'),
+            'source_id': s.source_id, 'participant_id': s.participant_id,
+            'sender_id': s.speaker or s.participant_id, 'sender_raw': s.speaker,
+            'timestamp': s.timestamp, 'raw_text': s.text, 'normalized_text': s.text,
+            'message_index': i, 'index': i, 'content': s.text, 'scene': s.scene,
+            'mention_targets': re.findall(r'@([^\s@：:，,。！？!?]+)', s.text),
+        } for i, s in enumerate(spans)]
+        transforms = detect_transform_candidates(messages)
+        lexical_motifs = stable_expression_candidates(transforms, messages)
+        events = extract_interaction_events(messages, aliases=aliases or {})
+        relation_claims = []
+        relation_warnings = []
         observed = {
             'material_count': len(sources),
             'span_count': len(spans),
@@ -40,22 +59,35 @@ class SubjectProfiler:
             'warnings': ['observations describe source behavior and are not personality diagnoses'],
         }
         claims: list[StructuralClaim] = []
+        analysis_batches: list[dict] = []
         warnings = list(observed['warnings'])
         if provider is not None:
             try:
-                claims = infer_structural_claims(provider, [
-                    {'span_id': s.span_id, 'text': s.text, 'source_type': next(x.source_type for x in sources if x.source_id == s.source_id),
+                claims, analysis_batches = infer_structural_claims_full(provider, [
+                    {'span_id': s.span_id, 'source_id': s.source_id, 'participant_id': s.participant_id,
+                     'text': s.text, 'source_type': next(x.source_type for x in sources if x.source_id == s.source_id),
                      'scene': s.scene, 'question_id': s.question_id, 'tags': s.tags}
                     for s in spans
-                ])
+                ], batch_size=batch_size)
                 validate_span_references(claims, spans, participant_id)
             except Exception as exc:
                 warnings.append(f'inference_failed:{type(exc).__name__}')
+            if with_relations and events:
+                try:
+                    relation_claims = infer_relationship_claims(
+                        provider, [e.model_dump() for e in events],
+                        [s.model_dump() for s in spans],
+                    )
+                except Exception as exc:
+                    relation_warnings.append(f'relation_inference_failed:{type(exc).__name__}')
+        warnings.extend(relation_warnings)
+        graph = build_relation_graph(events, relation_claims)
         findings = self._cross_source_findings(claims)
         approved = [c for c in claims if c.status == 'approved']
         return ProfileArtifact(
             profile_id=f'subject_{participant_id}', participant_id=participant_id,
             pseudonym=participant_id, created_at=datetime.now(timezone.utc).isoformat(),
+            schema_version='1.1',
             source_manifest=[{
                 'source_id': s.source_id, 'path': s.path, 'checksum': s.checksum,
                 'message_count': sum(1 for span in spans if span.source_id == s.source_id),
@@ -64,6 +96,18 @@ class SubjectProfiler:
             consent=self.consent, observed_style=observed,
             source_profiles=source_profiles, structural_claims=claims,
             cross_source_findings=findings,
+            lexical_motifs=lexical_motifs,
+            parody_variants=transforms,
+            interaction_events=events,
+            relationship_claims=relation_claims,
+            relation_graph=graph,
+            analysis_batches=analysis_batches,
+            quality_metrics={
+                'full_coverage': True,
+                'transform_candidate_count': len(transforms),
+                'interaction_event_count': len(events),
+                'relationship_claim_count': len(relation_claims),
+            },
             generation_policy={
                 'subject_constraints': [c.claim_id for c in approved],
                 'approved_claims_only': True,

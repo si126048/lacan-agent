@@ -149,6 +149,10 @@ def build_parser() -> argparse.ArgumentParser:
     sb.add_argument("--cards-dir", default="data/subject-artifacts")
     sb.add_argument("--consent", help="JSON consent policy")
     sb.add_argument("--mock", action="store_true", help="use the offline structural candidate provider")
+    sb.add_argument("--mode", choices=["full", "sample"], default="full")
+    sb.add_argument("--batch-size", type=int, default=80)
+    sb.add_argument("--with-relations", action="store_true", default=False)
+    sb.add_argument("--aliases", help="JSON alias registry for directed interactions")
     ss = subject_sub.add_parser("show", help="show a subject artifact")
     ss.add_argument("--participant", required=True)
     ss.add_argument("--cards-dir", default="data/subject-artifacts")
@@ -163,6 +167,12 @@ def build_parser() -> argparse.ArgumentParser:
     sd = subject_sub.add_parser("delete", help="delete a derived subject artifact")
     sd.add_argument("--participant", required=True)
     sd.add_argument("--cards-dir", default="data/subject-artifacts")
+    for name, help_text in (("inspect-motifs", "inspect lexical and parody candidates"),
+                            ("inspect-relations", "inspect directed interaction graph"),
+                            ("show-batch-failures", "show failed analysis batches")):
+        ip = subject_sub.add_parser(name, help=help_text)
+        ip.add_argument("--participant", required=True)
+        ip.add_argument("--cards-dir", default="data/subject-artifacts")
     return parser
 
 
@@ -273,7 +283,20 @@ def execute(args: argparse.Namespace) -> Any:
                 except (OSError, json.JSONDecodeError) as exc:
                     raise CliError(f'invalid consent file: {exc}') from exc
             profiler = SubjectProfiler(args.sources, root=args.root, consent=consent)
-            artifact = profiler.build(args.participant, provider=provider)
+            if args.batch_size <= 0:
+                raise CliError('--batch-size must be positive', EXIT_USAGE)
+            aliases = None
+            if getattr(args, 'aliases', None):
+                try:
+                    payload = json.loads(Path(args.aliases).read_text(encoding='utf-8'))
+                    aliases = {str(item['participant_id']): [str(x) for x in item.get('aliases', [])]
+                               for item in payload.get('participants', [])}
+                except (OSError, ValueError, KeyError, TypeError) as exc:
+                    raise CliError(f'invalid alias registry: {exc}', EXIT_USAGE) from exc
+            artifact = profiler.build(args.participant, provider=provider,
+                                     batch_size=args.batch_size,
+                                     with_relations=args.with_relations,
+                                     aliases=aliases)
             cards_dir.mkdir(parents=True, exist_ok=True)
             artifact_path.write_text(artifact.model_dump_json(indent=2), encoding='utf-8')
             return {'status': 'ok', 'participant': args.participant, 'written': str(artifact_path.resolve()),
@@ -287,6 +310,14 @@ def execute(args: argparse.Namespace) -> Any:
             raise CliError(f'invalid subject artifact: {exc}') from exc
         if subject_cmd == 'show':
             return artifact.model_dump(mode='json')
+        if subject_cmd == 'inspect-motifs':
+            return {'lexical_motifs': artifact.lexical_motifs, 'parody_variants': [x.model_dump() for x in artifact.parody_variants]}
+        if subject_cmd == 'inspect-relations':
+            return {'interaction_events': [x.model_dump() for x in artifact.interaction_events],
+                    'relationship_claims': [x.model_dump() for x in artifact.relationship_claims],
+                    'relation_graph': artifact.relation_graph.model_dump()}
+        if subject_cmd == 'show-batch-failures':
+            return {'batches': [x for x in artifact.analysis_batches if x.get('status') == 'failed']}
         if subject_cmd == 'review':
             try:
                 review = json.loads(Path(args.input).read_text(encoding='utf-8'))

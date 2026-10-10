@@ -221,6 +221,7 @@ class BehavioralProfiler:
             profile_id=f'profile_{pseudonym}',
             participant_id=pseudonym,
             pseudonym=pseudonym,
+            schema_version='1.0',
             created_at=datetime.now(timezone.utc).isoformat(),
             source_manifest=[SourceManifest(
                 source_id=path.stem, path=str(path), checksum=digest,

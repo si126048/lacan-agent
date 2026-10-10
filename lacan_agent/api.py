@@ -80,7 +80,7 @@ def participant(x:ParticipantIn):
 def source(pid:str, project_id: str = Form(...), file: UploadFile = File(...)):
     p=store.get_participant(project_id,pid)
     if not p:raise HTTPException(404,'PARTICIPANT_NOT_FOUND')
-    if p.withdrawn_at or not _consent_active(p.consent_scope):return err(403,'CONSENT_REQUIRED','授权不足')
+    if p.withdrawn_at or not _consent_active(p.consent_scope):raise HTTPException(403,'CONSENT_REQUIRED')
     try:return _ingest_upload(file, project_id, pid, p.consent_scope).model_dump(exclude={'text'})
     except ValueError as e: raise HTTPException(422,str(e))
 @app.post('/api/v1/analysis-runs',status_code=202)
@@ -88,19 +88,22 @@ def analysis(x:RunIn):
     try:r=flow.run(x.project_id,x.participant_id,x.source_ids,x.idempotency_key); return {'run_id':r.id,'state':r.state}
     except ValueError as e: raise HTTPException(422,str(e))
 @app.get('/api/v1/analysis-runs/{rid}')
-def run(rid):return store.get_run(rid).model_dump(mode='json') if store.get_run(rid) else err(404,'RUN_NOT_FOUND','资源不存在')
+def run(rid):
+    result = store.get_run(rid)
+    if not result: raise HTTPException(404, 'RUN_NOT_FOUND')
+    return result.model_dump(mode='json')
 @app.post('/api/v1/analysis-runs/{rid}/reviews')
 def review(rid:str,x:ReviewRequest):return flow.review(rid,x).model_dump(mode='json')
 @app.get('/api/v1/analysis-runs/{rid}/packet')
 def packet(rid):
     r=store.get_run(rid)
-    if not r:return err(404,'RUN_NOT_FOUND','资源不存在')
-    if not r.packet or r.state not in (RunState.APPROVED,RunState.COMPILED):return err(409,'NOT_APPROVED','尚未通过人工审核')
+    if not r: raise HTTPException(404, 'RUN_NOT_FOUND')
+    if not r.packet or r.state not in (RunState.APPROVED,RunState.COMPILED): raise HTTPException(409, 'NOT_APPROVED')
     return r.packet.model_dump(mode='json')
 @app.get('/api/v1/analysis-runs/{rid}/graph')
 def graph(rid):
     try:return flow.export(rid)['graph']
-    except PermissionError as e:return err(409,str(e),'尚未通过人工审核或授权不足')
+    except PermissionError as e: raise HTTPException(409, str(e))
 @app.post('/api/v1/participants/{pid}/withdraw',status_code=202)
 def withdraw(pid:str,project_id:str):
     p=store.withdraw(project_id,pid)

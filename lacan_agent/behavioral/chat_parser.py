@@ -7,11 +7,14 @@ import hashlib
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 RETURN_SYMBOL = "\u23ce"
 SEPARATOR_RE = re.compile(r"^-{10,}$")
 TIMESTAMP_RE = re.compile(r"^\[(\d{2}-\d{2}-\d{2}\s+\d{2}:\d{2})\]$")
 MESSAGE_RE = re.compile(r"^【(.+?)】：(.*)$")
+MENTION_RE = re.compile(r"@([^\s@：:，,。！？!?]+)")
+QUOTE_RE = re.compile(r"(?:引用|回复|reply)\s*[:：]?\s*([\w-]+)", re.I)
 
 
 def load_participant_messages(path: str | Path) -> list[str]:
@@ -43,28 +46,73 @@ def stable_message_id(source_id: str, index: int, content: str) -> str:
     return f'msg_{digest}'
 
 
-def load_normalized_messages(path: str | Path, source_id: str | None = None) -> list[dict]:
-    """Return stable, serializable messages for profile artifacts."""
+def load_message_records(path: str | Path, source_id: str | None = None,
+                         participant_id: str | None = None,
+                         default_sender: str | None = None,
+                         scene: str | None = None) -> list[dict[str, Any]]:
+    """Parse a chat export without discarding sender, timing or raw offsets."""
     source_id = source_id or Path(path).stem
-    parsed = parse_wechat_chat(path)
-    messages = [item.content for item in parsed] if parsed else load_participant_messages(path)
+    participant_id = participant_id or source_id
     raw_text = read_text(path)
+    parsed = parse_wechat_chat(path)
+    records: list[dict[str, Any]] = []
+    if parsed:
+        cursor = 0
+        for i, item in enumerate(parsed):
+            content = item.content
+            start = raw_text.find(content, cursor)
+            if start < 0:
+                start = cursor
+            mid = stable_message_id(source_id, i, content)
+            mentions = MENTION_RE.findall(content)
+            quote_match = QUOTE_RE.search(content)
+            has_reply = '回复' in content
+            has_quote = '引用' in content
+            records.append({
+                'message_id': mid, 'source_id': source_id, 'participant_id': participant_id,
+                'sender_id': item.sender, 'sender_raw': item.sender,
+                'timestamp': item.timestamp.isoformat() if item.timestamp else None,
+                'raw_text': content, 'normalized_text': content, 'index': i,
+                'message_index': i, 'content': content, 'char_start': start,
+                'char_end': start + len(content), 'mention_targets': mentions,
+                'reply_to_message_id': (quote_match.group(1) if has_reply and quote_match else None),
+                'quote_message_id': (quote_match.group(1) if has_quote and quote_match else None), 'scene': scene,
+                'transform_annotations': [],
+            })
+            cursor = start + len(content)
+        return records
     cursor = 0
-    normalized = []
-    for i, content in enumerate(messages):
-        start = raw_text.find(content, cursor)
+    for i, line in enumerate(raw_text.splitlines()):
+        content = line.rstrip().removesuffix(RETURN_SYMBOL).strip()
+        if not content:
+            continue
+        start = raw_text.find(line, cursor)
         if start < 0:
             start = cursor
-        normalized.append({
-            'message_id': stable_message_id(source_id, i, content),
-            'source_id': source_id,
-            'index': i,
-            'content': content,
-            'char_start': start,
-            'char_end': start + len(content),
+        mid = stable_message_id(source_id, i, content)
+        quote_match = QUOTE_RE.search(content)
+        has_reply = '回复' in content
+        has_quote = '引用' in content
+        records.append({
+            'message_id': mid, 'source_id': source_id, 'participant_id': participant_id,
+            'sender_id': default_sender, 'sender_raw': default_sender, 'timestamp': None,
+            'raw_text': content, 'normalized_text': content, 'index': len(records),
+            'message_index': len(records), 'content': content, 'char_start': start,
+            'char_end': start + len(content), 'mention_targets': MENTION_RE.findall(content),
+            'reply_to_message_id': (quote_match.group(1) if has_reply and quote_match else None),
+            'quote_message_id': (quote_match.group(1) if has_quote and quote_match else None), 'scene': scene,
+            'transform_annotations': [],
         })
-        cursor = start + len(content)
-    return normalized
+        cursor = start + len(line)
+    return records
+
+
+def load_normalized_messages(path: str | Path, source_id: str | None = None,
+                             participant_id: str | None = None,
+                             default_sender: str | None = None,
+                             scene: str | None = None) -> list[dict]:
+    """Return stable, serializable messages for profile artifacts."""
+    return load_message_records(path, source_id, participant_id, default_sender, scene)
 
 
 @dataclass
@@ -120,5 +168,13 @@ def parse_wechat_chat(path: str | Path) -> list[ChatMessage]:
                 continue
 
             messages.append(ChatMessage(sender=sender, content=content, timestamp=current_ts))
+            continue
+
+        # WeChat exports may wrap a single message across physical lines.
+        # Preserve the continuation instead of silently dropping it.
+        if messages and not stripped.startswith('【'):
+            continuation = stripped.removesuffix(RETURN_SYMBOL).strip()
+            if continuation:
+                messages[-1].content = f"{messages[-1].content}\n{continuation}"
 
     return messages

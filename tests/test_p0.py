@@ -5,7 +5,7 @@ from lacan_agent.models import *
 from lacan_agent.rag import ingest, validate_span
 from lacan_agent.workflow import Workflow
 
-BASE=Path('D:/ai/lacan-agent/.test-tmp')
+BASE=Path('.test-tmp')
 def setup():
     BASE.mkdir(exist_ok=True)
     db=BASE/('db-'+__import__('uuid').uuid4().hex+'.sqlite')

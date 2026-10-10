@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import itertools
 import json
 import logging
 import os
@@ -48,7 +49,7 @@ class CulturalAnnotator:
         self._entries = load_gazetteer(gazetteer_path)
         self._patterns = self._compile_patterns()
         self._confidence_threshold = confidence_threshold
-        self._counter = 0
+        self._counter = itertools.count(1)
 
     def _compile_patterns(self) -> list[tuple[re.Pattern, GazetteerEntry]]:
         patterns = []
@@ -73,9 +74,8 @@ class CulturalAnnotator:
                     key = (span.id, entry.name)
                     if key not in seen:
                         seen.add(key)
-                        self._counter += 1
                         annotation = CulturalAnnotation(
-                            id=f"ca_{self._counter:04d}",
+                            id=f"ca_{next(self._counter):04d}",
                             span_id=span.id,
                             entity_name=entry.name,
                             entity_type=entry.entity_type,

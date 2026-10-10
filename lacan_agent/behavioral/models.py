@@ -13,6 +13,21 @@ STRUCTURAL_DIMENSIONS = {
     'four_discourse', 'rsi_relation', 'narrative_conflict',
 }
 CLAIM_STATUSES = {'candidate', 'approved', 'rejected', 'needs_revision'}
+TRANSFORM_TYPES = {
+    'parody', 'homophone', 'character_substitution', 'punctuation_play',
+    'reduplication', 'template_variation', 'quote_or_meme', 'code_switch',
+    'emoji_substitution', 'unknown_variant',
+}
+INTERACTION_TYPES = {
+    'mention', 'reply', 'quote', 'question_to', 'request_to', 'tease',
+    'agreement', 'disagreement', 'correction', 'co_creation',
+    'narrative_assignment', 'unknown',
+}
+RELATION_TYPES = {
+    'coordination', 'playful_teasing', 'repeated_request', 'correction',
+    'conflict', 'support', 'narrative_co_creation', 'attention_pattern',
+    'role_assignment', 'uncertain',
+}
 
 
 class BehavioralProfile(BaseModel):
@@ -137,6 +152,137 @@ class EvidenceSpan(BaseModel):
     tags: list[str] = Field(default_factory=list)
 
 
+class MessageRecord(BaseModel):
+    """Lossless, serializable chat message record used by the text pipeline."""
+    message_id: str
+    source_id: str
+    participant_id: str
+    sender_id: str | None = None
+    sender_raw: str | None = None
+    timestamp: str | None = None
+    raw_text: str
+    normalized_text: str
+    message_index: int
+    char_start: int = 0
+    char_end: int = 0
+    reply_to_message_id: str | None = None
+    quote_message_id: str | None = None
+    mention_targets: list[str] = Field(default_factory=list)
+    scene: str | None = None
+    transform_annotations: list[str] = Field(default_factory=list)
+
+
+class ConversationWindow(BaseModel):
+    window_id: str
+    source_id: str
+    participant_ids: list[str] = Field(default_factory=list)
+    start_message_id: str | None = None
+    end_message_id: str | None = None
+    start_time: str | None = None
+    end_time: str | None = None
+    messages: list[MessageRecord] = Field(default_factory=list)
+    scene: str | None = None
+
+
+class TransformAnnotation(BaseModel):
+    annotation_id: str
+    message_id: str
+    raw_form: str
+    canonical_form: str
+    transform_type: str
+    confidence: float = 0.0
+    evidence_span_ids: list[str] = Field(default_factory=list)
+    status: str = 'candidate'
+
+    @field_validator('transform_type')
+    @classmethod
+    def valid_transform_type(cls, value: str) -> str:
+        if value not in TRANSFORM_TYPES:
+            raise ValueError(f'INVALID_TRANSFORM_TYPE:{value}')
+        return value
+
+    @field_validator('confidence')
+    @classmethod
+    def valid_transform_confidence(cls, value: float) -> float:
+        if not 0 <= value <= 1:
+            raise ValueError('confidence must be in [0, 1]')
+        return value
+
+
+class InteractionEvent(BaseModel):
+    event_id: str
+    source_id: str
+    window_id: str | None = None
+    actor_id: str
+    target_id: str
+    action_type: str
+    message_ids: list[str] = Field(default_factory=list)
+    evidence_span_ids: list[str] = Field(default_factory=list)
+    timestamp: str | None = None
+    scene: str | None = None
+    confidence: float = 0.0
+
+    @field_validator('action_type')
+    @classmethod
+    def valid_action_type(cls, value: str) -> str:
+        if value not in INTERACTION_TYPES:
+            raise ValueError(f'INVALID_INTERACTION_TYPE:{value}')
+        return value
+
+
+class RelationshipClaim(BaseModel):
+    claim_id: str
+    actor_id: str
+    target_id: str
+    relation_type: str
+    direction: str = 'directed'
+    text: str
+    evidence_span_ids: list[str] = Field(default_factory=list)
+    interaction_event_ids: list[str] = Field(default_factory=list)
+    confidence: float = 0.0
+    alternatives: list[str] = Field(default_factory=list)
+    time_range: tuple[str, str] | None = None
+    scene_range: list[str] = Field(default_factory=list)
+    status: str = 'candidate'
+
+    @field_validator('relation_type')
+    @classmethod
+    def valid_relation_type(cls, value: str) -> str:
+        if value not in RELATION_TYPES:
+            raise ValueError(f'INVALID_RELATION_TYPE:{value}')
+        return value
+
+    @field_validator('direction')
+    @classmethod
+    def valid_direction(cls, value: str) -> str:
+        if value not in {'directed', 'reciprocal', 'unknown'}:
+            raise ValueError(f'INVALID_RELATION_DIRECTION:{value}')
+        return value
+
+    @field_validator('confidence')
+    @classmethod
+    def valid_relation_confidence(cls, value: float) -> float:
+        if not 0 <= value <= 1:
+            raise ValueError('confidence must be in [0, 1]')
+        return value
+
+    @field_validator('status')
+    @classmethod
+    def valid_relation_status(cls, value: str) -> str:
+        if value not in CLAIM_STATUSES:
+            raise ValueError(f'INVALID_CLAIM_STATUS:{value}')
+        return value
+
+
+class RelationGraph(BaseModel):
+    nodes: list[str] = Field(default_factory=list)
+    directed_edges: list[dict] = Field(default_factory=list)
+    interaction_counts: dict[str, int] = Field(default_factory=dict)
+    scene_variants: dict[str, list[str]] = Field(default_factory=dict)
+    temporal_changes: list[dict] = Field(default_factory=list)
+    evidence_index: dict[str, list[str]] = Field(default_factory=dict)
+
+
 class StructuralClaim(BaseModel):
     claim_id: str
     dimension: str
@@ -226,7 +372,7 @@ class ProfileArtifact(BaseModel):
     profile_id: str
     participant_id: str
     pseudonym: str
-    schema_version: str = '1.0'
+    schema_version: str = '1.1'
     created_at: str
     source_manifest: list[SourceManifest] = Field(default_factory=list)
     consent: ConsentPolicy
@@ -234,6 +380,13 @@ class ProfileArtifact(BaseModel):
     source_profiles: dict[str, dict] = Field(default_factory=dict)
     structural_claims: list[StructuralClaim] = Field(default_factory=list)
     cross_source_findings: list[CrossSourceFinding] = Field(default_factory=list)
+    lexical_motifs: list[dict] = Field(default_factory=list)
+    parody_variants: list[TransformAnnotation] = Field(default_factory=list)
+    interaction_events: list[InteractionEvent] = Field(default_factory=list)
+    relationship_claims: list[RelationshipClaim] = Field(default_factory=list)
+    relation_graph: RelationGraph = Field(default_factory=RelationGraph)
+    analysis_batches: list[dict] = Field(default_factory=list)
+    quality_metrics: dict = Field(default_factory=dict)
     topics: list[EvidenceClaim] = Field(default_factory=list)
     episodes: list[EvidenceClaim] = Field(default_factory=list)
     relationships: list[EvidenceClaim] = Field(default_factory=list)

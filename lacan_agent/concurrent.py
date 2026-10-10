@@ -76,8 +76,6 @@ class RateLimitedWorkflow:
         self._workflow = workflow
         self._rpm = rpm
         self._semaphore = asyncio.Semaphore(rpm)
-        self._tokens = rpm
-        self._last_refill = asyncio.get_event_loop().time() if False else 0.0
 
     async def run(self, project_id: str, participant_id: str,
                   source_ids: list[str], idem: str) -> AnalysisRun:

@@ -50,12 +50,16 @@ def _plain_spans(source: MaterialSource, text: str) -> list[EvidenceSpan]:
 
 def _chat_spans(source: MaterialSource, path: Path) -> list[EvidenceSpan]:
     spans: list[EvidenceSpan] = []
-    for item in load_normalized_messages(path, source.source_id):
+    for item in load_normalized_messages(
+        path, source.source_id, source.participant_id,
+        source.metadata.get('default_sender'), source.metadata.get('scene') or source.context,
+    ):
         spans.append(EvidenceSpan(
             span_id=f"span_{item['message_id'][4:]}",
             source_id=source.source_id, participant_id=source.participant_id,
             text=item['content'], start_offset=item['char_start'],
             end_offset=item['char_end'], message_id=item['message_id'],
+            speaker=item.get('sender_raw'), timestamp=item.get('timestamp'),
             scene=source.metadata.get('scene') or source.context,
             tags=list(source.metadata.get('tags', [])),
         ))

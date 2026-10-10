@@ -108,6 +108,7 @@ class QwenProvider:
         self.model = model or os.environ.get('LACAN_MODEL', 'qwen-plus')
         self.timeout = timeout if timeout is not None else float(os.environ.get('LACAN_LLM_TIMEOUT', '60'))
         self.max_retries = max_retries if max_retries is not None else int(os.environ.get('LACAN_LLM_RETRIES', '2'))
+        self.temperature = float(os.environ.get('LACAN_TEMPERATURE', '0.3'))
         self.client = OpenAI(api_key=self.api_key, base_url=base_url, timeout=self.timeout, max_retries=0)
 
     def _call(self, system: str, user_content: str) -> dict:
@@ -118,9 +119,11 @@ class QwenProvider:
                     model=self.model,
                     messages=[
                         {"role": "system", "content": system},
-                        {"role": "user", "content": user_content[:12000]},
+                        # Batching is performed by the analysis layer. Silently
+                        # truncating here biases every run toward early messages.
+                        {"role": "user", "content": user_content},
                     ],
-                    temperature=float(os.environ.get('LACAN_TEMPERATURE', '0.3')),
+                    temperature=self.temperature,
                     response_format={"type": "json_object"},
                 )
                 text = resp.choices[0].message.content or ''

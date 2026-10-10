@@ -14,5 +14,6 @@ build-backend = "hatchling.build"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 tmp_path_retention_policy = "none"
+addopts = "--basetemp=.test-tmp"
 [tool.ruff]
 line-length = 100
